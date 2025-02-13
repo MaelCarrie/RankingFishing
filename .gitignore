@@ -1,0 +1,122 @@
+# OSX
+.DS_Store
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# WebStorm/IntelliJ
+.idea/
+*.iml
+
+# Node/NPM/Yarn
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# React Native
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/captures/
+
+# Fichiers de build
+*.apk
+*.aab
+*.ipa
+*.xcarchive
+
+# Firebase
+backend/functions/lib/
+backend/.firebase/
+backend/firebase-debug.log
+backend/ui-debug.log
+backend/.runtimeconfig.json
+backend/serviceAccountKey.json
+
+# Environnement
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env.json
+
+# Cache et logs
+*.log
+.cache/
+coverage/
+build/
+dist/
+.temp/
+
+# iOS spécifique
+mobile/ios/*.xcworkspace
+mobile/ios/*.xcodeproj/*
+!mobile/ios/*.xcodeproj/project.pbxproj
+!mobile/ios/*.xcodeproj/xcshareddata/
+!mobile/ios/*.xcworkspace/contents.xcworkspacedata
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/ios/Podfile.lock
+mobile/ios/*.dSYM.zip
+mobile/ios/*.ipa
+
+# Android spécifique
+mobile/android/.gradle
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/*.iml
+mobile/android/.idea/
+mobile/android/.project
+mobile/android/.settings/
+mobile/android/captures/
+mobile/android/gradle/
+mobile/android/gradlew
+mobile/android/gradlew.bat
+mobile/android/key.properties
+mobile/android/release/
+
+# Tests
+coverage/
+.jest/
+__snapshots__/
+
+# Divers
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+*.swp
+*.swo
+.tmp/
+temp/
+tmp/
+
+# Fastlane
+mobile/fastlane/report.xml
+mobile/fastlane/Preview.html
+mobile/fastlane/screenshots
+mobile/fastlane/test_output
+mobile/fastlane/README.md
+
+# Bundle
+*.jsbundle
+*.bundle
+*.map
+
+# CocoaPods
+mobile/ios/Pods/
+mobile/ios/Podfile.lock
+
+# Metro
+.metro-health-check* 
