@@ -4,33 +4,58 @@ Application mobile de classement de pêche développée avec React Native et Exp
 
 ## Prérequis
 
-- Node.js (version recommandée : >=14.17)
+- Node.js **v20 ou supérieur** ([télécharger via nvm](https://github.com/nvm-sh/nvm) ou [nodejs.org](https://nodejs.org))
 - npm (inclus avec Node.js)
-- Expo Go sur votre smartphone (disponible sur App Store ou Google Play)
+- **Expo Go** sur votre smartphone — App Store (iOS) ou Google Play (Android)
+
+> Vérifier votre version de Node : `node -v` — elle doit commencer par `v20` ou plus.
 
 ## Installation
 
-1. Installez les dépendances du projet :
+Cloner le dépôt puis installer les dépendances :
+
 ```bash
-npm install
+git clone <url-du-repo>
+cd RankingFishingExpo
+npm install --legacy-peer-deps
 ```
 
-2. Installez Expo :
-```bash
-npm install expo
-```
+## Lancer l'app sur son téléphone
 
-## Lancement du projet
+### Cas 1 — Même réseau Wi-Fi (le plus simple)
 
-1. Démarrer le serveur de développement :
+Votre téléphone et l'ordinateur qui héberge le serveur doivent être **sur le même réseau Wi-Fi**.
+
 ```bash
 npx expo start
 ```
 
-2. Une fois le serveur démarré :
-   - Scannez le QR code avec l'application Expo Go sur votre téléphone
-   - Ou appuyez sur 'a' dans le terminal pour ouvrir sur un émulateur Android
-   - Ou appuyez sur 'i' pour ouvrir sur un simulateur iOS (Mac uniquement)
+1. Un QR code s'affiche dans le terminal.
+2. Sur **iPhone** : ouvrez l'app Appareil photo et scannez le QR code.
+3. Sur **Android** : ouvrez Expo Go, appuyez sur "Scan QR code" et scannez.
+4. L'app se charge automatiquement dans Expo Go.
+
+### Cas 2 — Réseaux différents (collaborateur à distance)
+
+Si vous n'êtes pas sur le même Wi-Fi, utilisez le mode tunnel :
+
+```bash
+npx expo start --tunnel
+```
+
+La première fois, Expo vous propose d'installer `@expo/ngrok` — acceptez (`y`).  
+Un lien public est généré : le QR code fonctionne depuis n'importe quel réseau.
+
+> Le mode tunnel est plus lent au premier chargement, c'est normal.
+
+### Se connecter dans l'app
+
+En mode développement, **n'importe quel email et mot de passe** fonctionne.  
+Exemple : `test@test.com` / `motdepasse123`
+
+Vous arriverez sur un profil de démo avec des données pré-remplies (captures, classements, chat).
+
+## Lancement du projet
 
 ## Architecture du projet
 
