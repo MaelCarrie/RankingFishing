@@ -1,21 +1,52 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import HomeScreen from '../screens/home/HomeScreen';
-import CapturesScreen from '../screens/captures/CapturesScreen';
-import ChatScreen from '../screens/chat/ChatScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import React, { useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { RootStackParamList } from './types';
+import { useAppDispatch, useAppSelector } from '../store';
+import { initAuth } from '../store/slices/authSlice';
+import { colors } from '../theme';
+import AuthNavigator from './AuthNavigator';
+import MainNavigator from './MainNavigator';
 
-const Tab = createBottomTabNavigator();
+const Root = createNativeStackNavigator<RootStackParamList>();
 
-const AppNavigator = () => {
+function LoadingScreen() {
   return (
-    <Tab.Navigator>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Captures" component={CapturesScreen} />
-      <Tab.Screen name="Chat" component={ChatScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-    </Tab.Navigator>
+    <View style={styles.loading}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
   );
-};
+}
 
-export default AppNavigator;
+export default function AppNavigator() {
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    dispatch(initAuth());
+  }, [dispatch]);
+
+  if (isLoading) return <LoadingScreen />;
+
+  return (
+    <NavigationContainer>
+      <Root.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+        {isAuthenticated ? (
+          <Root.Screen name="MainTabs" component={MainNavigator} />
+        ) : (
+          <Root.Screen name="AuthStack" component={AuthNavigator} />
+        )}
+      </Root.Navigator>
+    </NavigationContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+});

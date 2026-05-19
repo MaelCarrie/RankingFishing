@@ -1,20 +1,40 @@
 {
   "expo": {
-    "name": "RankingFishingExpo",
-    "slug": "RankingFishingExpo",
+    "name": "RankingFishing",
+    "slug": "rankingfishing",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#F5F5F0",
+    "splash": {
+      "backgroundColor": "#2E7D32"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rankingfishing.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
-      }
-    }
+        "backgroundColor": "#2E7D32"
+      },
+      "package": "com.rankingfishing.app"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RankingFishing accède à vos photos pour que vous puissiez partager vos captures."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "RankingFishing accède à votre position pour géolocaliser vos captures (fonctionnalité Premium)."
+        }
+      ]
+    ]
   }
 }
