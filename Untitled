@@ -1,0 +1,42 @@
+-- Grants de base                                                             
+  grant usage on schema public to anon, authenticated;                          
+  grant all on all tables in schema public to authenticated;                    
+  grant all on all sequences in schema public to authenticated;                 
+  grant select on all tables in schema public to anon;      
+                                                                                
+  -- RLS captures                         
+  alter table public.captures enable row level security;                        
+  alter table public.capture_photos enable row level security;                  
+  alter table public.capture_likes enable row level security;
+  alter table public.species enable row level security;                         
+                                                            
+  create policy "captures_select" on public.captures
+    for select using (auth.uid() is not null and (is_draft = false or user_id = 
+  auth.uid()));                               
+                                                                                
+  create policy "captures_insert" on public.captures        
+    for insert with check (auth.uid() = user_id);                               
+                                              
+  create policy "captures_update" on public.captures                            
+    for update using (auth.uid() = user_id);                
+                                                                                
+  create policy "captures_delete" on public.captures
+    for delete using (auth.uid() = user_id);                                    
+                                                            
+  create policy "capture_photos_select" on public.capture_photos
+    for select using (auth.uid() is not null);
+                                                                                
+  create policy "capture_photos_insert" on public.capture_photos
+    for insert with check (auth.uid() is not null);                             
+                                                            
+  create policy "capture_likes_select" on public.capture_likes                  
+    for select using (auth.uid() is not null);
+                                                                                
+  create policy "capture_likes_insert" on public.capture_likes
+    for insert with check (auth.uid() = user_id);
+
+  create policy "capture_likes_delete" on public.capture_likes                  
+    for delete using (auth.uid() = user_id);
+                                                                                
+  create policy "species_select" on public.species          
+    for select using (true);   

@@ -6,7 +6,9 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { fetchMessages, sendMessage } from '../../store/slices/chatSlice';
+import { fetchMessages, sendMessage, addMessage } from '../../store/slices/chatSlice';
+import { subscribeToMessages } from '../../api/chat';
+import { USE_MOCK_DATA } from '../../config/supabase';
 import { ChatStackParamList } from '../../navigation/types';
 import { Message } from '../../store/types';
 import { colors, spacing, borderRadius } from '../../theme';
@@ -27,6 +29,14 @@ export default function ConversationScreen({ route }: Props) {
 
   useEffect(() => {
     dispatch(fetchMessages(conversation.id));
+
+    // Écoute temps réel (uniquement en mode Supabase)
+    if (!USE_MOCK_DATA) {
+      const unsubscribe = subscribeToMessages(conversation.id, (newMessage) => {
+        dispatch(addMessage(newMessage));
+      });
+      return () => unsubscribe();
+    }
   }, [dispatch, conversation.id]);
 
   useEffect(() => {

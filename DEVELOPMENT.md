@@ -24,7 +24,7 @@
 | Framework mobile | React Native 0.76 + Expo SDK 52 |
 | Navigation | React Navigation v7 (Native Stack + Bottom Tabs) |
 | État global | Redux Toolkit + react-redux |
-| Backend (futur) | Firebase (Auth, Firestore, Storage, Cloud Functions) |
+| Backend (futur) | Supabase (Auth, PostgreSQL, Storage, Edge Functions) |
 | Stockage local | AsyncStorage |
 | Photos | expo-image-picker |
 | Géolocalisation | expo-location |
@@ -68,40 +68,32 @@ npm run web      # Version web (expérimental)
 
 ---
 
-## Configurer Firebase
+## Configurer Supabase
 
-L'app tourne actuellement en **mode mock** (données simulées localement). Pour brancher Firebase :
+L'app tourne actuellement en **mode mock** (données simulées localement). Pour brancher Supabase :
 
-### 1. Créer un projet Firebase
+### 1. Créer un projet Supabase
 
-1. Aller sur [console.firebase.google.com](https://console.firebase.google.com)
+1. Aller sur [supabase.com](https://supabase.com) — **gratuit, sans carte bancaire**
 2. Créer un projet nommé `rankingfishing`
-3. Activer **Authentication** (Email/Password + Google + Facebook)
-4. Créer une base **Firestore** (mode production)
-5. Activer **Storage**
-6. Ajouter une app Web (icône `</>` sur la page d'accueil)
+3. Aller dans **Project Settings > API**
+4. Copier **Project URL** et **anon public key**
 
 ### 2. Copier la configuration
 
-Dans `src/config/firebase.ts`, remplacer les valeurs placeholder :
+Dans `src/config/supabase.ts`, remplacer les valeurs placeholder :
 
 ```typescript
-export const firebaseConfig = {
-  apiKey: 'ta_valeur',
-  authDomain: 'ton-projet.firebaseapp.com',
-  projectId: 'ton-projet',
-  storageBucket: 'ton-projet.firebasestorage.app',
-  messagingSenderId: 'ton_id',
-  appId: 'ton_app_id',
-};
+const supabaseUrl = 'https://xxxxx.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
 
-// Passer à false quand Firebase est configuré
+// Passer à false quand Supabase est configuré
 export const USE_MOCK_DATA = false;
 ```
 
-### 3. Initialiser Firebase dans l'app
+### 3. Créer les tables et brancher les services
 
-Décommenter le code Firebase dans `src/api/auth.ts`, `src/api/captures.ts`, etc.
+Voir **`SUPABASE.md`** pour le guide complet de A à Z.
 
 ---
 
@@ -384,92 +376,105 @@ Formulaire complet de création de capture :
 
 ---
 
-## Structure Firestore à créer
+## Structure de la base Supabase (PostgreSQL)
 
-Quand tu seras prêt à configurer Firebase, voici les collections à créer :
+Voir **`SUPABASE.md`** pour le SQL complet à coller dans l'éditeur Supabase.
+
+Tables principales :
 
 ```
-firestore/
-├── users/
-│   └── {userId}/
-│       ├── id, username, email, avatar, bio, location
-│       ├── isPremium, xp, level, levelName
-│       ├── specialties: [{ type, level }]
-│       └── stats: { totalCaptures, totalWeightGrams, biggestFish, globalRank, regionalRank }
-│
-├── captures/
-│   └── {captureId}/
-│       ├── userId, username, userAvatar
-│       ├── species: { id, name, nameFr, ... }
-│       ├── weightGrams, sizeCm
-│       ├── photos: [url]
-│       ├── description, weather
-│       ├── location: GeoPoint (premium)
-│       ├── publishedAt, isDraft
-│       ├── validationScore, score, likes, comments
-│       └── likedBy: [userId]  ← pour le like
-│
-├── rankings/
-│   └── {type}_{period}/     ← ex: global_alltime
-│       └── entries: RankingEntry[]
-│
-├── conversations/
-│   └── {convId}/
-│       ├── type, name, avatar
-│       ├── participantIds, participantNames
-│       ├── lastMessage, unreadCounts: { userId: count }
-│       └── updatedAt
-│
-├── messages/
-│   └── {convId}/
-│       └── {messageId}/
-│           ├── senderId, senderName, senderAvatar
-│           ├── content, type
-│           └── sentAt, isRead
-│
-├── badges/
-│   └── {badgeId}/
-│       ├── name, description, icon, category, tier
-│       ├── isUnlocked, progress, target, xpReward
-│       └── unlockedAt
-│
-└── species/
-    └── {speciesId}/
-        ├── name, nameFr, category, icon
-        └── scoreCoefficient, rarityScore
+users              ← profils utilisateurs
+user_stats         ← stats de pêche (captures, poids, rangs)
+user_specialties   ← spécialités de pêche par utilisateur
+captures           ← toutes les prises publiées/brouillons
+capture_photos     ← photos associées à une capture
+capture_likes      ← table de jonction capture ↔ utilisateur (likes)
+species            ← 15 espèces de poissons avec coefficients
+conversations      ← conversations privées et groupes
+conversation_participants ← qui est dans quelle conversation
+messages           ← messages de chaque conversation
+badges             ← définitions des badges (globaux)
+user_badges        ← progression et déblocage par utilisateur
+rankings           ← classements précalculés (recalculés par Edge Function)
 ```
 
 ---
 
 ## Ce qui reste à faire
 
-### MVP prioritaire
+> Légende : 🔴 Bloquant MVP — 🟠 Important Phase 2 — 🟡 Amélioration — 🟢 Nice-to-have
 
-- [ ] **Configuration Firebase** : créer le projet, brancher l'auth et Firestore
-- [ ] **Authentification réelle** : login/register/reset via Firebase Auth
-- [ ] **Stockage photos** : upload vers Firebase Storage + URLs persistantes
-- [ ] **Persistance Firestore** : remplacer le mock par de vrais appels Firestore
+---
 
-### Fonctionnalités Phase 2
+### 🔴 Bloc 1 — Intégration Supabase (BD principale)
 
-- [ ] **Carte des spots** (Google Maps API, expo-location) — Premium
-- [ ] **Notifications push** (expo-notifications)
-- [ ] **Système de commentaires** sur les captures
-- [ ] **Validation communautaire** des captures
-- [ ] **Paiement Premium** (Stripe / Apple Pay / Google Pay)
-- [ ] **Statistiques avancées** pour les Premium
-- [ ] **Connexion Google/Facebook** (OAuth 2.0)
-- [ ] **Partage de captures** dans le chat
+> Voir `SUPABASE.md` pour le guide complet de A à Z.
 
-### Améliorations UI/UX
+- [ ] **Créer le projet Supabase** (supabase.com — gratuit, sans carte)
+- [ ] **Installer le SDK Supabase** dans le projet Expo (`@supabase/supabase-js`) ✅ déjà dans package.json
+- [ ] **Configurer `src/config/supabase.ts`** avec les vraies clés (URL + anon key)
+- [ ] **Créer les tables SQL** dans l'éditeur Supabase (script dans `SUPABASE.md`)
+- [ ] **Configurer les RLS** (Row Level Security — équivalent des règles Firestore)
+- [ ] **Passer `USE_MOCK_DATA` à `false`**
+- [ ] **Auth — Email/Password** : brancher `signIn`, `register`, `signOut`, `resetPassword` dans `src/api/auth.ts`
+- [ ] **Auth — Google** : OAuth avec `supabase.auth.signInWithOAuth` — nécessite Google Cloud Console (Client ID + Secret + redirect URI `https://flhqlktregfwvomzprlo.supabase.co/auth/v1/callback`)
+- [ ] **Supabase — Users** : créer le profil utilisateur à l'inscription, le lire à la connexion
+- [ ] **Supabase — Captures** : `fetchFeed`, `fetchMyCaptures`, `publishCapture`, `toggleLike`, `deleteCapture` dans `src/api/captures.ts`
+- [ ] **Supabase — Rankings** : calcul et lecture des classements dans `src/api/rankings.ts`
+- [ ] **Supabase — Chat** : `fetchConversations`, `fetchMessages`, `sendMessage` en temps réel dans `src/api/chat.ts`
+- [ ] **Supabase — Badges** : logique de débloquage automatique dans `src/api/badges.ts`
+- [ ] **Supabase Storage** : upload des photos de captures, stockage des avatars
+- [ ] **Policies Storage** : autoriser uniquement les fichiers image par utilisateur
 
-- [ ] Animations de transition (Reanimated)
-- [ ] Mode sombre
-- [ ] Onboarding pour les nouveaux utilisateurs
-- [ ] Recherche d'utilisateurs dans le chat
-- [ ] Filtres du feed (par espèce, zone géo, technique)
-- [ ] Détail d'une capture (écran complet)
-- [ ] Page de profil d'un autre utilisateur
+---
+
+### 🔴 Bloc 2 — Fonctionnalités manquantes pour le MVP
+
+- [ ] **Écran détail d'une capture** : vue complète avec photos full-screen, likes, commentaires
+- [ ] **Système de commentaires** : poster/lire des commentaires sur une capture
+- [ ] **Page profil d'un autre utilisateur** : consulter le profil, les captures, les stats d'un autre pêcheur
+- [ ] **Système de suivi (follow)** : suivre un utilisateur, fil "Amis" dans les classements
+- [ ] **Recherche d'utilisateurs** dans le chat pour démarrer une conversation
+
+---
+
+### 🟠 Bloc 3 — Fonctionnalités Phase 2
+
+- [ ] **Validation communautaire des captures** : système de vote pour confirmer/infirmer une prise (anti-fraude)
+- [ ] **Notifications push** : `expo-notifications` → nouveaux messages, badges débloqués, followers, validation
+- [ ] **Carte des spots de pêche** : `expo-location` + Google Maps / MapLibre — réservé Premium
+- [ ] **Abonnement Premium** : intégration paiement (Stripe, Apple Pay, Google Pay)
+- [ ] **Statistiques avancées Premium** : graphiques de progression, comparaisons, prédictions
+- [ ] **Partage de captures** : partager dans le chat, partager sur réseaux sociaux (expo-sharing)
+- [ ] **Filtres du feed** : filtrer par espèce, région géographique, technique de pêche
+- [ ] **Cloud Functions Firebase** : automatisation des scores, triggers de badges, recalcul des classements
+
+---
+
+### 🟡 Bloc 4 — Améliorations UI/UX
+
+- [ ] **Animations de transitions** (react-native-reanimated 3)
+- [ ] **Mode sombre** : thème dark complet, respect du réglage système
+- [ ] **Onboarding** : tutoriel pour les nouveaux utilisateurs (3-4 écrans)
+- [ ] **Pull-to-refresh** global et cohérent sur tous les écrans
+- [ ] **Skeleton loaders** à la place des spinners (meilleure UX perçue)
+- [ ] **Feedback haptique** (expo-haptics) sur les actions importantes
+- [ ] **Swipe to delete** sur les captures dans `CapturesScreen`
+- [ ] **Infinite scroll** sur le feed (pagination Firestore)
+- [ ] **Optimistic updates** sur les likes (réponse UI immédiate)
+
+---
+
+### 🟢 Bloc 5 — Infrastructure & Qualité
+
+- [ ] **Support hors-ligne** : cache local avec AsyncStorage, file d'attente d'envoi
+- [ ] **Compression d'images** avant upload (expo-image-manipulator)
+- [ ] **Conformité RGPD** : export des données utilisateur, suppression de compte
+- [ ] **Tests unitaires** : utils, slices Redux
+- [ ] **Tests E2E** : parcours critiques (inscription → publication → classement)
+- [ ] **Dashboard de modération** : signalement de captures frauduleuses, bannissement
+- [ ] **Analytics** (Firebase Analytics ou Mixpanel)
+- [ ] **Crashlytics** (Firebase Crashlytics) pour le suivi des bugs en production
 
 ---
 

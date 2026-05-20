@@ -4,9 +4,9 @@ import * as chatApi from '../../api/chat';
 
 export const fetchConversations = createAsyncThunk(
   'chat/fetchConversations',
-  async (_, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
-      return await chatApi.fetchConversations();
+      return await chatApi.fetchConversations(userId);
     } catch (e: any) {
       return rejectWithValue(e.message);
     }
@@ -60,6 +60,18 @@ const chatSlice = createSlice({
     setActiveConversation(state, action: PayloadAction<Conversation | null>) {
       state.activeConversation = action.payload;
     },
+    // Utilisé par subscribeToMessages pour les messages temps réel
+    addMessage(state, action: PayloadAction<Message>) {
+      const msg = action.payload;
+      if (!state.messages[msg.conversationId]) {
+        state.messages[msg.conversationId] = [];
+      }
+      // Éviter les doublons (le message peut arriver via sendMessage ET via le listener)
+      const exists = state.messages[msg.conversationId].some((m) => m.id === msg.id);
+      if (!exists) {
+        state.messages[msg.conversationId].push(msg);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -95,5 +107,5 @@ const chatSlice = createSlice({
   },
 });
 
-export const { setActiveConversation } = chatSlice.actions;
+export const { setActiveConversation, addMessage } = chatSlice.actions;
 export default chatSlice.reducer;

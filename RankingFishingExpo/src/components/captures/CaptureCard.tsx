@@ -44,8 +44,8 @@ export default function CaptureCard({ capture, onLike, isPremium = false }: Prop
       {/* Info poisson */}
       <View style={styles.fishInfo}>
         <View style={styles.speciesRow}>
-          <Text style={styles.speciesIcon}>{capture.species.icon}</Text>
-          <Text style={styles.speciesName}>{capture.species.nameFr}</Text>
+          <Text style={styles.speciesIcon}>{capture.species?.icon ?? '🐟'}</Text>
+          <Text style={styles.speciesName}>{capture.species?.nameFr ?? 'Espèce inconnue'}</Text>
           {capture.weather && (
             <Text style={styles.weather}>{WEATHER_LABELS[capture.weather]}</Text>
           )}

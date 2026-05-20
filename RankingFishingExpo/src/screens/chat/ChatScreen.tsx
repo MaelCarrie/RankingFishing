@@ -59,9 +59,11 @@ export default function ChatScreen() {
   const navigation = useNavigation<Nav>();
   const { conversations, isLoading } = useAppSelector((s) => s.chat);
 
+  const { user } = useAppSelector((s) => s.auth);
+
   useEffect(() => {
-    dispatch(fetchConversations());
-  }, [dispatch]);
+    if (user?.id) dispatch(fetchConversations(user.id));
+  }, [dispatch, user?.id]);
 
   function openConversation(conv: Conversation) {
     dispatch(setActiveConversation(conv));

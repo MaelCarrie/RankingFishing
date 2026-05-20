@@ -34,6 +34,13 @@ export const signOut = createAsyncThunk('auth/signOut', async () => {
   await authApi.signOut();
 });
 
+export const refreshUser = createAsyncThunk(
+  'auth/refresh',
+  async (userId: string) => {
+    return await authApi.refreshAndStoreUser(userId);
+  }
+);
+
 export const resetPassword = createAsyncThunk(
   'auth/resetPassword',
   async (email: string, { rejectWithValue }) => {
@@ -112,6 +119,11 @@ const authSlice = createSlice({
     builder.addCase(signOut.fulfilled, (state) => {
       state.user = null;
       state.isAuthenticated = false;
+    });
+
+    // refreshUser
+    builder.addCase(refreshUser.fulfilled, (state, action) => {
+      state.user = action.payload;
     });
   },
 });

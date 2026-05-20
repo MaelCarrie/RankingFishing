@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { publishCapture } from '../../store/slices/capturesSlice';
+import { refreshUser } from '../../store/slices/authSlice';
 import { FISH_SPECIES, MAX_PHOTOS_PER_CAPTURE, WEATHER_LABELS } from '../../config/constants';
 import { validateWeight, validateSize } from '../../utils/validation';
 import { FishSpecies, NewCaptureForm, WeatherCondition } from '../../store/types';
@@ -54,7 +55,7 @@ export default function NewCaptureScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
       allowsEditing: true,
       aspect: [4, 3],
@@ -91,6 +92,7 @@ export default function NewCaptureScreen() {
 
     if (publishCapture.fulfilled.match(result)) {
       setForm(INITIAL_FORM);
+      if (!isDraft) dispatch(refreshUser(user.id));
       Alert.alert(
         isDraft ? 'Brouillon sauvegardé' : 'Capture publiée !',
         isDraft ? 'Ta capture a été sauvegardée en brouillon.' : 'Ta capture est maintenant visible sur le feed.',

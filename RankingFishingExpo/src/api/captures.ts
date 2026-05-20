@@ -1,11 +1,14 @@
 import { Capture, NewCaptureForm } from '../store/types';
-import { MOCK_FEED_CAPTURES, MOCK_MY_CAPTURES, MOCK_CURRENT_USER } from './mock/data';
-import { delay, generateId } from '../utils/helpers';
-import { calculateCaptureScore } from '../config/constants';
-import { USE_MOCK_DATA } from '../config/firebase';
+import { MOCK_FEED_CAPTURES, MOCK_MY_CAPTURES } from './mock/data';
+import { delay, generateId } from '../utils/helpers'; // generateId utilisé uniquement en mode mock
+import { calculateCaptureScore, FISH_SPECIES } from '../config/constants';
+import { supabase, USE_MOCK_DATA } from '../config/supabase';
+import { uploadCapturePhoto } from './storage';
 
 let mockFeed = [...MOCK_FEED_CAPTURES];
 let mockMine = [...MOCK_MY_CAPTURES];
+
+// ─── Feed public ──────────────────────────────────────────────────────────────
 
 export async function fetchFeed(): Promise<Capture[]> {
   if (USE_MOCK_DATA) {
@@ -14,17 +17,37 @@ export async function fetchFeed(): Promise<Capture[]> {
       (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     );
   }
-  // TODO: Firestore query
-  throw new Error('Firebase non configuré');
+
+  const { data, error } = await supabase
+    .from('captures')
+    .select('*, capture_photos(*)')
+    .eq('is_draft', false)
+    .order('published_at', { ascending: false })
+    .limit(30);
+
+  if (error) throw error;
+  return (data ?? []).map(mapCapture);
 }
+
+// ─── Mes captures ─────────────────────────────────────────────────────────────
 
 export async function fetchMyCaptures(userId: string): Promise<Capture[]> {
   if (USE_MOCK_DATA) {
     await delay(400);
     return mockMine.filter((c) => c.userId === userId);
   }
-  throw new Error('Firebase non configuré');
+
+  const { data, error } = await supabase
+    .from('captures')
+    .select('*, capture_photos(*)')
+    .eq('user_id', userId)
+    .order('published_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCapture);
 }
+
+// ─── Publier une capture ──────────────────────────────────────────────────────
 
 export async function publishCapture(
   userId: string,
@@ -35,8 +58,9 @@ export async function publishCapture(
   if (USE_MOCK_DATA) {
     await delay(1200);
     if (!form.species) throw new Error('Espèce requise');
-    const weightGrams = (parseFloat(form.weightKg.replace(',', '.')) || 0) * 1000
-      + (parseFloat(form.weightGrams.replace(',', '.')) || 0);
+    const weightGrams =
+      (parseFloat(form.weightKg.replace(',', '.')) || 0) * 1000 +
+      (parseFloat(form.weightGrams.replace(',', '.')) || 0);
     const sizeCm = parseFloat(form.sizeCm.replace(',', '.')) || 0;
 
     const newCapture: Capture = {
@@ -59,16 +83,84 @@ export async function publishCapture(
       isLiked: false,
     };
 
-    if (!form.isDraft) {
-      mockFeed.unshift(newCapture);
-    }
+    if (!form.isDraft) mockFeed.unshift(newCapture);
     mockMine.unshift(newCapture);
     return newCapture;
   }
-  throw new Error('Firebase non configuré');
+
+  if (!form.species) throw new Error('Espèce requise');
+
+  const weightGrams =
+    (parseFloat(form.weightKg.replace(',', '.')) || 0) * 1000 +
+    (parseFloat(form.weightGrams.replace(',', '.')) || 0);
+  const sizeCm = parseFloat(form.sizeCm.replace(',', '.')) || 0;
+  const score = calculateCaptureScore(weightGrams, form.species);
+
+  // 1. Insérer la capture — Supabase génère l'UUID
+  const { data: capture, error: captureError } = await supabase
+    .from('captures')
+    .insert({
+      user_id: userId,
+      username,
+      user_avatar: userAvatar ?? null,
+      species_id: form.species.id,
+      species_data: form.species,
+      weight_grams: weightGrams,
+      size_cm: sizeCm,
+      description: form.description || null,
+      weather: form.weather ?? null,
+      latitude: form.location?.latitude ?? null,
+      longitude: form.location?.longitude ?? null,
+      location_name: null,
+      is_draft: form.isDraft,
+      score,
+      validation_score: 0,
+      likes: 0,
+      comments: 0,
+    })
+    .select()
+    .single();
+
+  if (captureError) throw captureError;
+  const captureId = capture.id; // UUID réel généré par Supabase
+
+  // 2. Upload des photos et insertion dans capture_photos
+  const photoUrls: string[] = [];
+  for (let i = 0; i < form.photos.length; i++) {
+    const url = await uploadCapturePhoto(userId, captureId, form.photos[i]);
+    photoUrls.push(url);
+    await supabase.from('capture_photos').insert({ capture_id: captureId, url, sort_order: i });
+  }
+
+  return {
+    id: capture.id,
+    userId: capture.user_id,
+    username: capture.username,
+    userAvatar: capture.user_avatar ?? undefined,
+    species: form.species,
+    weightGrams: capture.weight_grams,
+    sizeCm: capture.size_cm,
+    photos: photoUrls,
+    description: capture.description ?? undefined,
+    weather: capture.weather ?? undefined,
+    location: form.location ?? undefined,
+    locationName: undefined,
+    publishedAt: capture.published_at,
+    isDraft: capture.is_draft,
+    validationScore: capture.validation_score,
+    score: capture.score,
+    likes: 0,
+    comments: 0,
+    isLiked: false,
+  };
 }
 
-export async function toggleLike(captureId: string, userId: string): Promise<{ likes: number; isLiked: boolean }> {
+// ─── Toggle like ──────────────────────────────────────────────────────────────
+
+export async function toggleLike(
+  captureId: string,
+  userId: string
+): Promise<{ likes: number; isLiked: boolean }> {
   if (USE_MOCK_DATA) {
     await delay(200);
     const capture = mockFeed.find((c) => c.id === captureId);
@@ -77,8 +169,48 @@ export async function toggleLike(captureId: string, userId: string): Promise<{ l
     capture.likes += capture.isLiked ? 1 : -1;
     return { likes: capture.likes, isLiked: capture.isLiked };
   }
-  throw new Error('Firebase non configuré');
+
+  // Vérifier si déjà liké
+  const { data: existing } = await supabase
+    .from('capture_likes')
+    .select('capture_id')
+    .eq('capture_id', captureId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existing) {
+    // Unliker
+    await supabase
+      .from('capture_likes')
+      .delete()
+      .eq('capture_id', captureId)
+      .eq('user_id', userId);
+
+    await supabase.rpc('decrement_likes', { p_capture_id: captureId });
+
+    const { data } = await supabase
+      .from('captures')
+      .select('likes')
+      .eq('id', captureId)
+      .single();
+
+    return { likes: data?.likes ?? 0, isLiked: false };
+  } else {
+    // Liker
+    await supabase.from('capture_likes').insert({ capture_id: captureId, user_id: userId });
+    await supabase.rpc('increment_likes', { p_capture_id: captureId });
+
+    const { data } = await supabase
+      .from('captures')
+      .select('likes')
+      .eq('id', captureId)
+      .single();
+
+    return { likes: data?.likes ?? 0, isLiked: true };
+  }
 }
+
+// ─── Supprimer une capture ────────────────────────────────────────────────────
 
 export async function deleteCapture(captureId: string): Promise<void> {
   if (USE_MOCK_DATA) {
@@ -87,5 +219,39 @@ export async function deleteCapture(captureId: string): Promise<void> {
     mockMine = mockMine.filter((c) => c.id !== captureId);
     return;
   }
-  throw new Error('Firebase non configuré');
+
+  const { error } = await supabase.from('captures').delete().eq('id', captureId);
+  if (error) throw error;
+}
+
+// ─── Mapper une ligne Supabase → type Capture ─────────────────────────────────
+
+function mapCapture(row: any): Capture {
+  const photos = (row.capture_photos ?? [])
+    .sort((a: any, b: any) => a.sort_order - b.sort_order)
+    .map((p: any) => p.url);
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    userAvatar: row.user_avatar ?? undefined,
+    species: row.species_data ?? FISH_SPECIES.find((s) => s.id === row.species_id) ?? FISH_SPECIES[0],
+    weightGrams: row.weight_grams,
+    sizeCm: row.size_cm,
+    photos,
+    description: row.description ?? undefined,
+    weather: row.weather ?? undefined,
+    location: (row.latitude != null && row.longitude != null)
+      ? { latitude: row.latitude, longitude: row.longitude }
+      : undefined,
+    locationName: row.location_name ?? undefined,
+    publishedAt: row.published_at,
+    isDraft: row.is_draft,
+    validationScore: row.validation_score ?? 0,
+    score: row.score ?? 0,
+    likes: row.likes ?? 0,
+    comments: row.comments ?? 0,
+    isLiked: false, // résolu côté composant avec capture_likes si besoin
+  };
 }

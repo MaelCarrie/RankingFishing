@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { useAppDispatch, useAppSelector } from '../store';
-import { initAuth } from '../store/slices/authSlice';
+import { initAuth, refreshUser } from '../store/slices/authSlice';
 import { colors } from '../theme';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
@@ -24,7 +24,11 @@ export default function AppNavigator() {
   const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
-    dispatch(initAuth());
+    dispatch(initAuth()).then((action) => {
+      if (initAuth.fulfilled.match(action) && action.payload) {
+        dispatch(refreshUser(action.payload.id));
+      }
+    });
   }, [dispatch]);
 
   if (isLoading) return <LoadingScreen />;
