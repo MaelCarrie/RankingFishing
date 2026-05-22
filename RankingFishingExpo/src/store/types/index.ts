@@ -99,6 +99,16 @@ export interface Capture {
   isLiked: boolean;
 }
 
+export interface Comment {
+  id: string;
+  captureId: string;
+  userId: string;
+  username: string;
+  userAvatar?: string;
+  content: string;
+  createdAt: string; // ISO date string
+}
+
 export interface NewCaptureForm {
   species: FishSpecies | null;
   weightKg: string;

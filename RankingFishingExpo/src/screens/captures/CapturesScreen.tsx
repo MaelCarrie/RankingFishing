@@ -3,16 +3,24 @@ import {
   View, FlatList, StyleSheet, Text, ActivityIndicator, TouchableOpacity, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchMyCaptures } from '../../store/slices/capturesSlice';
 import { Capture } from '../../store/types';
+import { ProfileStackParamList, RootStackParamList } from '../../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import { formatWeight, formatSize, formatRelativeDate } from '../../utils/formatting';
 
-function CaptureRow({ capture }: { capture: Capture }) {
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<ProfileStackParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
+function CaptureRow({ capture, onPress }: { capture: Capture; onPress: (c: Capture) => void }) {
   return (
-    <View style={styles.row}>
+    <TouchableOpacity style={styles.row} activeOpacity={0.85} onPress={() => onPress(capture)}>
       <Image source={{ uri: capture.photos[0] }} style={styles.thumb} />
       <View style={styles.rowContent}>
         <View style={styles.rowTop}>
@@ -45,18 +53,21 @@ function CaptureRow({ capture }: { capture: Capture }) {
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 export default function CapturesScreen() {
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<Nav>();
   const { myCaptures, isLoading } = useAppSelector((s) => s.captures);
   const { user } = useAppSelector((s) => s.auth);
 
   useEffect(() => {
     if (user) dispatch(fetchMyCaptures(user.id));
   }, [dispatch, user]);
+
+  const handlePress = (capture: Capture) => navigation.navigate('CaptureDetail', { capture });
 
   const published = myCaptures.filter((c) => !c.isDraft);
   const drafts = myCaptures.filter((c) => c.isDraft);
@@ -70,7 +81,7 @@ export default function CapturesScreen() {
       <FlatList
         data={myCaptures}
         keyExtractor={(c) => c.id}
-        renderItem={({ item }) => <CaptureRow capture={item} />}
+        renderItem={({ item }) => <CaptureRow capture={item} onPress={handlePress} />}
         ListHeaderComponent={
           <View style={styles.statsBar}>
             <View style={styles.statItem}>

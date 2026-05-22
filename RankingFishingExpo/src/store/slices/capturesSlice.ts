@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { CapturesState, NewCaptureForm } from '../types';
 import * as capturesApi from '../../api/captures';
 import type { RootState } from '../index';
@@ -54,6 +54,18 @@ export const toggleLike = createAsyncThunk(
   }
 );
 
+export const deleteCapture = createAsyncThunk(
+  'captures/delete',
+  async (captureId: string, { rejectWithValue }) => {
+    try {
+      await capturesApi.deleteCapture(captureId);
+      return captureId;
+    } catch (e: any) {
+      return rejectWithValue(e.message);
+    }
+  }
+);
+
 const initialState: CapturesState = {
   feed: [],
   myCaptures: [],
@@ -67,6 +79,14 @@ const capturesSlice = createSlice({
   initialState,
   reducers: {
     clearError(state) { state.error = null; },
+    adjustCommentCount(state, action: PayloadAction<{ captureId: string; delta: number }>) {
+      const { captureId, delta } = action.payload;
+      for (const capture of [...state.feed, ...state.myCaptures]) {
+        if (capture.id === captureId) {
+          capture.comments = Math.max(0, capture.comments + delta);
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -94,9 +114,14 @@ const capturesSlice = createSlice({
             capture.isLiked = isLiked;
           }
         }
+      })
+
+      .addCase(deleteCapture.fulfilled, (state, action) => {
+        state.feed = state.feed.filter((c) => c.id !== action.payload);
+        state.myCaptures = state.myCaptures.filter((c) => c.id !== action.payload);
       });
   },
 });
 
-export const { clearError } = capturesSlice.actions;
+export const { clearError, adjustCommentCount } = capturesSlice.actions;
 export default capturesSlice.reducer;

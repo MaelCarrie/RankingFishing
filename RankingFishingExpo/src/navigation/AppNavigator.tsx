@@ -5,9 +5,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { useAppDispatch, useAppSelector } from '../store';
 import { initAuth, refreshUser } from '../store/slices/authSlice';
-import { colors } from '../theme';
+import { colors, typography } from '../theme';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
+import CaptureDetailScreen from '../screens/captures/CaptureDetailScreen';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 
@@ -37,7 +38,21 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Root.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         {isAuthenticated ? (
-          <Root.Screen name="MainTabs" component={MainNavigator} />
+          <>
+            <Root.Screen name="MainTabs" component={MainNavigator} />
+            <Root.Screen
+              name="CaptureDetail"
+              component={CaptureDetailScreen}
+              options={{
+                headerShown: true,
+                animation: 'slide_from_right',
+                title: 'Capture',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { ...typography.h4, color: colors.textPrimary },
+                headerTintColor: colors.primary,
+              }}
+            />
+          </>
         ) : (
           <Root.Screen name="AuthStack" component={AuthNavigator} />
         )}

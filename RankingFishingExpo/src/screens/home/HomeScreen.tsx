@@ -4,16 +4,21 @@ import {
   ActivityIndicator, TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchFeed, toggleLike } from '../../store/slices/capturesSlice';
-import { MainTabParamList } from '../../navigation/types';
+import { MainTabParamList, RootStackParamList } from '../../navigation/types';
+import { Capture } from '../../store/types';
 import { colors, spacing, typography } from '../../theme';
 import CaptureCard from '../../components/captures/CaptureCard';
 
-type Nav = BottomTabNavigationProp<MainTabParamList>;
+type Nav = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export default function HomeScreen() {
   const dispatch = useAppDispatch();
@@ -34,6 +39,10 @@ export default function HomeScreen() {
     dispatch(toggleLike({ captureId, userId: user.id }));
   }, [dispatch, user]);
 
+  const handlePress = useCallback((capture: Capture) => {
+    navigation.navigate('CaptureDetail', { capture });
+  }, [navigation]);
+
   if (isLoading && feed.length === 0) {
     return (
       <View style={styles.loading}>
@@ -52,6 +61,7 @@ export default function HomeScreen() {
             capture={item}
             currentUserId={user?.id}
             onLike={handleLike}
+            onPress={handlePress}
             isPremium={user?.isPremium ?? false}
           />
         )}

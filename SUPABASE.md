@@ -181,6 +181,18 @@ create table public.capture_likes (
   primary key (capture_id, user_id)
 );
 
+-- Commentaires (issue #11) — voir migration_comments.sql (table + RLS + grants + trigger)
+-- username/user_avatar dénormalisés. Trigger on_comment_change → maj captures.comments.
+create table public.comments (
+  id uuid default gen_random_uuid() primary key,
+  capture_id uuid references public.captures(id) on delete cascade not null,
+  user_id uuid references public.users(id) on delete cascade not null,
+  username text not null,
+  user_avatar text,
+  content text not null check (char_length(content) between 1 and 1000),
+  created_at timestamptz default now()
+);
+
 -- ─── Chat ────────────────────────────────────────────────────────────────────
 create table public.conversations (
   id uuid default gen_random_uuid() primary key,

@@ -1,4 +1,4 @@
-import { Conversation } from '../store/types';
+import { Conversation, Capture } from '../store/types';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -28,4 +28,5 @@ export type ProfileStackParamList = {
 export type RootStackParamList = {
   AuthStack: undefined;
   MainTabs: undefined;
+  CaptureDetail: { capture: Capture };
 };
