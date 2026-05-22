@@ -1,10 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { CapturesState, NewCaptureForm } from '../types';
 import * as capturesApi from '../../api/captures';
+import type { RootState } from '../index';
 
-export const fetchFeed = createAsyncThunk('captures/fetchFeed', async (_, { rejectWithValue }) => {
+export const fetchFeed = createAsyncThunk('captures/fetchFeed', async (_, { rejectWithValue, getState }) => {
   try {
-    return await capturesApi.fetchFeed();
+    const userId = (getState() as RootState).auth.user?.id;
+    return await capturesApi.fetchFeed(userId);
   } catch (e: any) {
     return rejectWithValue(e.message);
   }
@@ -85,10 +87,12 @@ const capturesSlice = createSlice({
       .addCase(publishCapture.rejected, (state, action) => { state.isSubmitting = false; state.error = action.payload as string; })
 
       .addCase(toggleLike.fulfilled, (state, action) => {
-        const capture = state.feed.find((c) => c.id === action.payload.captureId);
-        if (capture) {
-          capture.likes = action.payload.likes;
-          capture.isLiked = action.payload.isLiked;
+        const { captureId, likes, isLiked } = action.payload;
+        for (const capture of [...state.feed, ...state.myCaptures]) {
+          if (capture.id === captureId) {
+            capture.likes = likes;
+            capture.isLiked = isLiked;
+          }
         }
       });
   },

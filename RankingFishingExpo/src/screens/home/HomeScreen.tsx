@@ -50,6 +50,7 @@ export default function HomeScreen() {
         renderItem={({ item }) => (
           <CaptureCard
             capture={item}
+            currentUserId={user?.id}
             onLike={handleLike}
             isPremium={user?.isPremium ?? false}
           />

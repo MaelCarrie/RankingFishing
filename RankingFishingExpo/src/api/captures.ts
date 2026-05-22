@@ -10,7 +10,7 @@ let mockMine = [...MOCK_MY_CAPTURES];
 
 // ─── Feed public ──────────────────────────────────────────────────────────────
 
-export async function fetchFeed(): Promise<Capture[]> {
+export async function fetchFeed(userId?: string): Promise<Capture[]> {
   if (USE_MOCK_DATA) {
     await delay(600);
     return [...mockFeed].sort(
@@ -26,7 +26,9 @@ export async function fetchFeed(): Promise<Capture[]> {
     .limit(30);
 
   if (error) throw error;
-  return (data ?? []).map(mapCapture);
+
+  const likedSet = await fetchLikedSet(userId, (data ?? []).map((c) => c.id));
+  return (data ?? []).map((row) => mapCapture(row, likedSet));
 }
 
 // ─── Mes captures ─────────────────────────────────────────────────────────────
@@ -44,7 +46,9 @@ export async function fetchMyCaptures(userId: string): Promise<Capture[]> {
     .order('published_at', { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map(mapCapture);
+
+  const likedSet = await fetchLikedSet(userId, (data ?? []).map((c) => c.id));
+  return (data ?? []).map((row) => mapCapture(row, likedSet));
 }
 
 // ─── Captures publiques d'un autre utilisateur ────────────────────────────────
@@ -243,9 +247,23 @@ export async function deleteCapture(captureId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── Helper : IDs des captures likées par l'utilisateur courant ───────────────
+
+async function fetchLikedSet(userId: string | undefined, captureIds: string[]): Promise<Set<string>> {
+  if (!userId || captureIds.length === 0) return new Set();
+
+  const { data } = await supabase
+    .from('capture_likes')
+    .select('capture_id')
+    .eq('user_id', userId)
+    .in('capture_id', captureIds);
+
+  return new Set((data ?? []).map((l: any) => l.capture_id));
+}
+
 // ─── Mapper une ligne Supabase → type Capture ─────────────────────────────────
 
-function mapCapture(row: any): Capture {
+function mapCapture(row: any, likedSet: Set<string> = new Set()): Capture {
   const photos = (row.capture_photos ?? [])
     .sort((a: any, b: any) => a.sort_order - b.sort_order)
     .map((p: any) => p.url);
@@ -271,6 +289,6 @@ function mapCapture(row: any): Capture {
     score: row.score ?? 0,
     likes: row.likes ?? 0,
     comments: row.comments ?? 0,
-    isLiked: false, // résolu côté composant avec capture_likes si besoin
+    isLiked: likedSet.has(row.id),
   };
 }

@@ -15,17 +15,25 @@ const PHOTO_HEIGHT = SCREEN_WIDTH * 0.65;
 
 interface Props {
   capture: Capture;
+  currentUserId?: string;
   onLike?: (captureId: string) => void;
+  onPress?: (capture: Capture) => void;
+  onCommentPress?: (captureId: string) => void;
   isPremium?: boolean;
 }
 
-export default function CaptureCard({ capture, onLike, isPremium = false }: Props) {
-  const canSeeLocation = isPremium || capture.userId === 'user_me';
-  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-
-  const goToProfile = () => navigation.navigate('UserProfile', { userId: capture.userId });
+export default function CaptureCard({
+  capture,
+  currentUserId,
+  onLike,
+  onPress,
+  onCommentPress,
+  isPremium = false,
+}: Props) {
+  const canSeeLocation = isPremium || capture.userId === currentUserId;
 
   return (
+    <TouchableOpacity activeOpacity={0.97} onPress={() => onPress?.(capture)} disabled={!onPress}>
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
@@ -113,7 +121,11 @@ export default function CaptureCard({ capture, onLike, isPremium = false }: Prop
           <Text style={[styles.actionText, capture.isLiked && styles.likedText]}>{capture.likes}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.action} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.action}
+          activeOpacity={0.7}
+          onPress={() => onCommentPress?.(capture.id)}
+        >
           <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
           <Text style={styles.actionText}>{capture.comments}</Text>
         </TouchableOpacity>
@@ -123,6 +135,7 @@ export default function CaptureCard({ capture, onLike, isPremium = false }: Prop
         </TouchableOpacity>
       </View>
     </View>
+    </TouchableOpacity>
   );
 }
 
