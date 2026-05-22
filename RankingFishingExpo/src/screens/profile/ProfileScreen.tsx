@@ -1,20 +1,21 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { signOut } from '../../store/slices/authSlice';
-import { ProfileStackParamList } from '../../navigation/types';
+import { signOut, refreshUser, refreshPendingCount } from '../../store/slices/authSlice';
+import { ProfileStackParamList, MainStackParamList } from '../../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import Avatar from '../../components/common/Avatar';
 import { formatWeight, formatRank, formatXP } from '../../utils/formatting';
 import { FISHING_TYPE_LABELS } from '../../config/constants';
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
+type MainNav = NativeStackNavigationProp<MainStackParamList>;
 
 const EXPERTISE_COLORS = { beginner: colors.success, intermediate: colors.info, expert: colors.secondary };
 const EXPERTISE_LABELS = { beginner: 'Débutant', intermediate: 'Intermédiaire', expert: 'Expert' };
@@ -22,9 +23,20 @@ const EXPERTISE_LABELS = { beginner: 'Débutant', intermediate: 'Intermédiaire'
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<Nav>();
-  const { user } = useAppSelector((s) => s.auth);
+  const { user, pendingRequestsCount } = useAppSelector((s) => s.auth);
+
+  // Re-fetch demandes + user (compteurs follow) à chaque fois qu'on revient sur cet écran
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      dispatch(refreshPendingCount(user.id));
+      dispatch(refreshUser(user.id));
+    }, [user?.id, dispatch])
+  );
 
   if (!user) return null;
+
+  const mainNav = navigation.getParent<MainNav>();
 
   const xpNextLevel = [0, 200, 500, 1000, 2000, 4000, 8000];
   const currentLevelXp = xpNextLevel[user.level - 1] ?? 0;
@@ -80,6 +92,30 @@ export default function ProfileScreen() {
           <Text style={styles.progressLabel}>
             {user.xp} / {nextLevelXp} XP · {xpProgress}% vers niveau {user.level + 1}
           </Text>
+        </View>
+
+        {/* Compteurs sociaux */}
+        <View style={styles.socialRow}>
+          <View style={styles.socialCell}>
+            <Text style={styles.socialValue}>{user.stats.totalCaptures}</Text>
+            <Text style={styles.socialLabel}>Captures</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.socialCell}
+            onPress={() => mainNav?.navigate('FollowList', { userId: user.id, type: 'followers' })}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.socialValue}>{user.followersCount}</Text>
+            <Text style={styles.socialLabel}>Abonnés</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.socialCell}
+            onPress={() => mainNav?.navigate('FollowList', { userId: user.id, type: 'following' })}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.socialValue}>{user.followingCount}</Text>
+            <Text style={styles.socialLabel}>Abonnements</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Stats */}
@@ -147,6 +183,18 @@ export default function ProfileScreen() {
 
         {/* Navigation */}
         <View style={styles.menu}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => mainNav?.navigate('FollowRequests')}>
+            <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+            <Text style={styles.menuLabel}>Demandes</Text>
+            {pendingRequestsCount > 0 ? (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{pendingRequestsCount}</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+            )}
+          </TouchableOpacity>
+          <View style={styles.menuSep} />
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Badges')}>
             <Ionicons name="medal-outline" size={22} color={colors.primary} />
             <Text style={styles.menuLabel}>Mes badges</Text>
@@ -231,6 +279,31 @@ const styles = StyleSheet.create({
   progressBar: { height: 8, backgroundColor: colors.border, borderRadius: 4, marginBottom: spacing.xs, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
   progressLabel: { ...typography.caption, color: colors.textSecondary },
+
+  socialRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+    ...shadows.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  socialCell: { flex: 1, alignItems: 'center' },
+  socialValue: { ...typography.h3, color: colors.textPrimary },
+  socialLabel: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+
+  countBadge: {
+    backgroundColor: colors.error,
+    borderRadius: borderRadius.full,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: { ...typography.caption, color: '#FFFFFF', fontWeight: '700' },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   statCard: {

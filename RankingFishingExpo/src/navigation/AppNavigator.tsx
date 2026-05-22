@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { useAppDispatch, useAppSelector } from '../store';
-import { initAuth, refreshUser } from '../store/slices/authSlice';
+import { initAuth, refreshUser, refreshPendingCount } from '../store/slices/authSlice';
 import { colors } from '../theme';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
@@ -27,6 +27,7 @@ export default function AppNavigator() {
     dispatch(initAuth()).then((action) => {
       if (initAuth.fulfilled.match(action) && action.payload) {
         dispatch(refreshUser(action.payload.id));
+        dispatch(refreshPendingCount(action.payload.id));
       }
     });
   }, [dispatch]);

@@ -1,3 +1,4 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
 import { Conversation } from '../store/types';
 
 export type AuthStackParamList = {
@@ -23,6 +24,14 @@ export type ProfileStackParamList = {
   ProfileMain: undefined;
   Badges: undefined;
   MyCaptures: undefined;
+};
+
+export type MainStackParamList = {
+  Tabs: NavigatorScreenParams<MainTabParamList>;
+  UserProfile: { userId: string };
+  UserSearch: undefined;
+  FollowList: { userId: string; type: 'followers' | 'following' };
+  FollowRequests: undefined;
 };
 
 export type RootStackParamList = {

@@ -26,6 +26,8 @@ export const MOCK_CURRENT_USER: User = {
     regionalRank: 12,
     challengesWon: 5,
   },
+  followersCount: 0,
+  followingCount: 0,
   createdAt: '2023-06-15T10:00:00Z',
 };
 
@@ -52,6 +54,8 @@ export const MOCK_USERS: User[] = [
       regionalRank: 1,
       challengesWon: 28,
     },
+    followersCount: 0,
+    followingCount: 0,
     createdAt: '2022-01-10T08:00:00Z',
   },
   {
@@ -74,6 +78,8 @@ export const MOCK_USERS: User[] = [
       regionalRank: 5,
       challengesWon: 12,
     },
+    followersCount: 0,
+    followingCount: 0,
     createdAt: '2023-02-20T14:00:00Z',
   },
   {
@@ -96,6 +102,8 @@ export const MOCK_USERS: User[] = [
       regionalRank: 1,
       challengesWon: 47,
     },
+    followersCount: 0,
+    followingCount: 0,
     createdAt: '2021-05-01T09:00:00Z',
   },
   {
@@ -121,6 +129,8 @@ export const MOCK_USERS: User[] = [
       regionalRank: 34,
       challengesWon: 3,
     },
+    followersCount: 0,
+    followingCount: 0,
     createdAt: '2023-09-01T11:00:00Z',
   },
 ];
