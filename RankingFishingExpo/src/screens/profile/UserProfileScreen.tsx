@@ -1,23 +1,31 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { MainStackParamList } from '../../navigation/types';
-import { useAppSelector } from '../../store';
+import { useAppSelector, useAppDispatch } from '../../store';
+import { refreshUser, decrementPendingRequestsCount } from '../../store/slices/authSlice';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import Avatar from '../../components/common/Avatar';
 import { fetchUserProfile } from '../../api/auth';
 import { fetchUserPublicCaptures } from '../../api/captures';
 import { fetchBadges } from '../../api/badges';
+import {
+  fetchRelationship, sendFollowRequest, cancelFollowRequest, unfollow,
+  acceptFollowRequest, declineFollowRequest,
+  FollowStatus, Relationship,
+} from '../../api/follows';
 import { Badge, BadgeTier, Capture, User } from '../../store/types';
 import { formatWeight, formatRank, formatXP, formatRelativeDate } from '../../utils/formatting';
 import { FISHING_TYPE_LABELS } from '../../config/constants';
 
 type RouteParams = RouteProp<MainStackParamList, 'UserProfile'>;
+type Nav = NativeStackNavigationProp<MainStackParamList>;
 
 // Largeur minimale d'une tuile de capture. Au-dessous, on bascule en 1 par ligne (pleine largeur).
 const GRID_ITEM_MIN_WIDTH = 140;
@@ -39,7 +47,8 @@ const EXPERTISE_LABELS = { beginner: 'Débutant', intermediate: 'Intermédiaire'
 
 export default function UserProfileScreen() {
   const route = useRoute<RouteParams>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
+  const dispatch = useAppDispatch();
   const { userId } = route.params;
   const currentUser = useAppSelector((s) => s.auth.user);
   const isOwnProfile = currentUser?.id === userId;
@@ -47,6 +56,10 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<User | null>(null);
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [followStatus, setFollowStatus] = useState<FollowStatus>('not_following');
+  const [theyFollowMe, setTheyFollowMe] = useState(false);
+  const [incomingRequest, setIncomingRequest] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [isLoading, setLoading] = useState(true);
   const [isRefreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,14 +67,21 @@ export default function UserProfileScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [p, c, b] = await Promise.all([
+      const promises: [Promise<User>, Promise<Capture[]>, Promise<Badge[]>, Promise<Relationship>] = [
         fetchUserProfile(userId),
         fetchUserPublicCaptures(userId),
         fetchBadges(userId),
-      ]);
+        currentUser
+          ? fetchRelationship(currentUser.id, userId)
+          : Promise.resolve({ myStatus: 'not_following', theyFollowMe: false, incomingRequest: false } as Relationship),
+      ];
+      const [p, c, b, rel] = await Promise.all(promises);
       setProfile(p);
       setCaptures(c);
       setBadges(b);
+      setFollowStatus(rel.myStatus);
+      setTheyFollowMe(rel.theyFollowMe);
+      setIncomingRequest(rel.incomingRequest);
       navigation.setOptions({ title: p.username });
     } catch (e: any) {
       setError(e?.message ?? 'Impossible de charger le profil');
@@ -69,7 +89,7 @@ export default function UserProfileScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId, navigation]);
+  }, [userId, navigation, currentUser]);
 
   useEffect(() => {
     load();
@@ -79,6 +99,106 @@ export default function UserProfileScreen() {
     setRefreshing(true);
     load();
   }, [load]);
+
+  const handleAcceptIncoming = useCallback(async () => {
+    if (!currentUser || !profile || followBusy) return;
+    setFollowBusy(true);
+    try {
+      await acceptFollowRequest(profile.id);
+      setIncomingRequest(false);
+      setTheyFollowMe(true);
+      // ils me suivent maintenant → mes followers +1, leur following +1
+      setProfile((p) => p ? { ...p, followingCount: p.followingCount + 1 } : p);
+      dispatch(refreshUser(currentUser.id));
+      dispatch(decrementPendingRequestsCount());
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message ?? 'Impossible d\'accepter');
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [currentUser, profile, followBusy, dispatch]);
+
+  const handleDeclineIncoming = useCallback(async () => {
+    if (!currentUser || !profile || followBusy) return;
+    setFollowBusy(true);
+    try {
+      await declineFollowRequest(profile.id);
+      setIncomingRequest(false);
+      dispatch(decrementPendingRequestsCount());
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message ?? 'Impossible de refuser');
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [currentUser, profile, followBusy, dispatch]);
+
+  const handleFollowPress = useCallback(async () => {
+    if (!currentUser || !profile || followBusy || isOwnProfile) return;
+
+    if (followStatus === 'not_following') {
+      setFollowBusy(true);
+      try {
+        await sendFollowRequest(currentUser.id, profile.id);
+        setFollowStatus('requested');
+      } catch (e: any) {
+        Alert.alert('Erreur', e?.message ?? 'Impossible d\'envoyer la demande');
+      } finally {
+        setFollowBusy(false);
+      }
+      return;
+    }
+
+    if (followStatus === 'requested') {
+      Alert.alert(
+        'Annuler la demande ?',
+        `Veux-tu annuler ta demande de suivi à ${profile.username} ?`,
+        [
+          { text: 'Non', style: 'cancel' },
+          {
+            text: 'Annuler', style: 'destructive',
+            onPress: async () => {
+              setFollowBusy(true);
+              try {
+                await cancelFollowRequest(currentUser.id, profile.id);
+                setFollowStatus('not_following');
+              } catch (e: any) {
+                Alert.alert('Erreur', e?.message ?? 'Impossible d\'annuler');
+              } finally {
+                setFollowBusy(false);
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    if (followStatus === 'following') {
+      Alert.alert(
+        'Se désabonner ?',
+        `Tu ne suivras plus ${profile.username}.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Se désabonner', style: 'destructive',
+            onPress: async () => {
+              setFollowBusy(true);
+              try {
+                await unfollow(currentUser.id, profile.id);
+                setFollowStatus('not_following');
+                setProfile((p) => p ? { ...p, followersCount: Math.max(0, p.followersCount - 1) } : p);
+                dispatch(refreshUser(currentUser.id));
+              } catch (e: any) {
+                Alert.alert('Erreur', e?.message ?? 'Impossible de se désabonner');
+              } finally {
+                setFollowBusy(false);
+              }
+            },
+          },
+        ],
+      );
+    }
+  }, [currentUser, profile, followStatus, followBusy, isOwnProfile, dispatch]);
 
   if (isLoading) {
     return (
@@ -144,18 +264,95 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {/* Boutons d'action */}
+        {/* Compteurs sociaux */}
+        <View style={styles.socialRow}>
+          <View style={styles.socialCell}>
+            <Text style={styles.socialValue}>{profile.stats.totalCaptures}</Text>
+            <Text style={styles.socialLabel}>Captures</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.socialCell}
+            onPress={() => navigation.navigate('FollowList', { userId: profile.id, type: 'followers' })}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.socialValue}>{profile.followersCount}</Text>
+            <Text style={styles.socialLabel}>Abonnés</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.socialCell}
+            onPress={() => navigation.navigate('FollowList', { userId: profile.id, type: 'following' })}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.socialValue}>{profile.followingCount}</Text>
+            <Text style={styles.socialLabel}>Abonnements</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Banner : demande entrante — Accepter / Refuser direct */}
+        {!isOwnProfile && incomingRequest && (
+          <View style={styles.requestBanner}>
+            <View style={styles.requestBannerHead}>
+              <Ionicons name="person-add" size={18} color={colors.primary} />
+              <Text style={styles.requestBannerTitle} numberOfLines={2}>
+                {profile.username} souhaite te suivre
+              </Text>
+            </View>
+            <View style={styles.requestBannerActions}>
+              <TouchableOpacity
+                style={[styles.requestBtn, styles.requestBtnAccept]}
+                onPress={handleAcceptIncoming}
+                disabled={followBusy}
+                activeOpacity={0.85}
+              >
+                {followBusy
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.requestBtnAcceptText}>Accepter</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.requestBtn, styles.requestBtnDecline]}
+                onPress={handleDeclineIncoming}
+                disabled={followBusy}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.requestBtnDeclineText}>Refuser</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Bouton Suivre / Demande / Abonné / Suivre en retour */}
         {!isOwnProfile && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDisabled]} disabled activeOpacity={0.6}>
-              <Ionicons name="person-add-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.actionBtnText}>Suivre</Text>
-              <View style={styles.soonChip}><Text style={styles.soonText}>Bientôt</Text></View>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDisabled]} disabled activeOpacity={0.6}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.actionBtnText}>Message</Text>
-              <View style={styles.soonChip}><Text style={styles.soonText}>Bientôt</Text></View>
+          <View style={styles.followRow}>
+            <TouchableOpacity
+              style={[
+                styles.followBtn,
+                followStatus === 'not_following' && styles.followBtnPrimary,
+                followStatus !== 'not_following' && styles.followBtnOutline,
+              ]}
+              onPress={handleFollowPress}
+              disabled={followBusy}
+              activeOpacity={0.8}
+            >
+              {followBusy && !incomingRequest ? (
+                <ActivityIndicator color={followStatus === 'not_following' ? '#fff' : colors.textPrimary} />
+              ) : followStatus === 'following' ? (
+                <>
+                  <Ionicons name="checkmark" size={18} color={colors.textPrimary} />
+                  <Text style={[styles.followBtnText, styles.followBtnTextOutline]}>Abonné(e)</Text>
+                </>
+              ) : followStatus === 'requested' ? (
+                <>
+                  <Ionicons name="time-outline" size={18} color={colors.textPrimary} />
+                  <Text style={[styles.followBtnText, styles.followBtnTextOutline]}>Demande envoyée</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="person-add-outline" size={18} color="#fff" />
+                  <Text style={[styles.followBtnText, styles.followBtnTextPrimary]}>
+                    {theyFollowMe ? 'Suivre en retour' : 'Suivre'}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -374,39 +571,87 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Actions
-  actionRow: {
+  // Compteurs sociaux (Captures / Abonnés / Abonnements)
+  socialRow: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: CARD_RADIUS,
+    paddingVertical: spacing.md,
     marginTop: -spacing.sm,
     marginBottom: spacing.md,
+    ...shadows.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  actionBtn: {
+  socialCell: { flex: 1, alignItems: 'center' },
+  socialValue: { ...typography.h3, color: colors.textPrimary },
+  socialLabel: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+
+  // Banner demande entrante
+  requestBanner: {
+    marginHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: CARD_RADIUS,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+    ...shadows.sm,
+  },
+  requestBannerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  requestBannerTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
     flex: 1,
+  },
+  requestBannerActions: { flexDirection: 'row', gap: spacing.sm },
+  requestBtn: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+  },
+  requestBtnAccept: { backgroundColor: colors.primary },
+  requestBtnAcceptText: { ...typography.button, color: '#fff', fontWeight: '700' },
+  requestBtnDecline: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  requestBtnDeclineText: { ...typography.button, color: colors.textSecondary, fontWeight: '600' },
+
+  // Bouton Suivre / Demande / Abonné
+  followRow: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  followBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    borderRadius: 10,
+    paddingVertical: spacing.sm + 4,
+    minHeight: 42,
+  },
+  followBtnPrimary: { backgroundColor: colors.primary },
+  followBtnOutline: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.full,
-    paddingVertical: spacing.sm + 2,
     borderWidth: 1,
     borderColor: colors.border,
-    ...shadows.sm,
   },
-  actionBtnDisabled: { opacity: 0.7 },
-  actionBtnText: {
-    ...typography.button,
-    color: colors.textSecondary,
-  },
-  soonChip: {
-    backgroundColor: colors.secondary,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 1,
-  },
-  soonText: { ...typography.caption, color: '#FFFFFF', fontWeight: '700', fontSize: 9 },
+  followBtnText: { ...typography.button, fontWeight: '700' },
+  followBtnTextPrimary: { color: '#FFFFFF' },
+  followBtnTextOutline: { color: colors.textPrimary },
 
   // Stats
   statsCard: {

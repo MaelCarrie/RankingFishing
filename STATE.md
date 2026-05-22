@@ -1,7 +1,7 @@
 # STATE.md — État actuel du projet RankingFishing
 
 > Résumé complet pour reprendre le projet dans un nouveau contexte Claude.
-> Dernière mise à jour : 2026-05-20
+> Dernière mise à jour : 2026-05-22
 
 ---
 
@@ -40,12 +40,21 @@
 | `rankings`                  | Classements calculés par l'Edge Function       |
 | `badges`                    | Badges disponibles — **peuplés** (9 badges)    |
 | `user_badges`               | Badges débloqués par utilisateur               |
+| `follows`                   | Relations de suivi acceptées (issue #13)        |
+| `follow_requests`           | Demandes de suivi en attente (issue #13)        |
 
 
 ### Données de référence ✅
 
 - **15 espèces** : carp, pike, zander, catfish, brown_trout, rainbow_trout, perch, black_bass, sea_bass, sea_bream, tench, roach, eel, salmon, asp
 - **9 badges** : badge_first_catch, badge_10_catches, badge_50_catches, badge_100_catches, badge_big_carp, badge_big_pike, badge_top100, badge_validator, badge_spring
+
+### Colonnes additionnelles sur `users` (issue #13) ✅
+
+```sql
+followers_count int default 0   -- nombre d'abonnés (denormalisé, maintenu par trigger)
+following_count int default 0   -- nombre d'abonnements
+```
 
 ### Fonctions SQL ✅
 
@@ -55,6 +64,9 @@ decrement_likes(p_capture_id uuid)      -- RPC pour unliker
 handle_new_user()                        -- Trigger : crée public.users à l'inscription
 handle_capture_stats()                   -- Trigger : met à jour user_stats + XP après capture
 refresh_global_ranks()                   -- Recalcule global_rank de tous les users depuis captures
+handle_follow_change()                   -- Trigger SECURITY DEFINER : maintient followers/following counts
+accept_follow_request(p_requester uuid)  -- RPC SECURITY DEFINER : accepte une demande (cible = auth.uid())
+decline_follow_request(p_requester uuid) -- RPC SECURITY DEFINER : refuse une demande
 ```
 
 ### Triggers ✅
@@ -62,6 +74,7 @@ refresh_global_ranks()                   -- Recalcule global_rank de tous les us
 ```sql
 on_auth_user_created   -- after insert on auth.users → crée users + user_stats
 on_capture_stats       -- after insert/update/delete on captures → met à jour user_stats + XP + rangs
+follows_count_trigger  -- after insert/delete on follows → met à jour followers_count/following_count
 ```
 
 **Détail de `handle_capture_stats` :**
@@ -90,6 +103,8 @@ Activé sur toutes les tables. Policies créées pour :
 - `species` : select (public)
 - `badges` : select (connecté)
 - `rankings` : select (connecté), écriture réservée au service_role
+- `follows` : select (public connecté), delete (suiveur uniquement). Insert via RPC `accept_follow_request` (SECURITY DEFINER)
+- `follow_requests` : select (requester ou target), insert (auth.uid() = requester), delete (requester ou target)
 
 ### Grants ✅
 
@@ -162,10 +177,24 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 - `fetchConversations(userId)` / `fetchMessages` / `sendMessage` branchés
 - `subscribeToMessages` via Supabase Realtime (`postgres_changes`)
 
+### `src/api/users.ts` ✅ (issue #14 — recherche)
+
+- `searchUsers(query, limit=20)` : recherche `ilike '%query%'` sur username, ordonné par XP desc
+- `fetchTopUsers(limit=10)` : top par XP pour l'état vide de la recherche
+
+### `src/api/follows.ts` ✅ (issue #13 — follow)
+
+- `fetchRelationship(myId, targetId)` : 2 requêtes batchées → `{ myStatus, theyFollowMe, incomingRequest }`
+- `getFollowStatus`, `sendFollowRequest`, `cancelFollowRequest`, `acceptFollowRequest`, `declineFollowRequest`, `unfollow`
+- `fetchFollowers(userId)`, `fetchFollowing(userId)`, `fetchPendingRequests(myId)`, `fetchPendingRequestsCount(myId)`
+
 ### `src/store/slices/authSlice.ts` ✅
 
 - Thunk `refreshUser(userId)` : fetche Supabase + persiste AsyncStorage + màj Redux
 - Utilisé après publication d'une capture et au démarrage de l'app
+- Thunk `refreshPendingCount(userId)` : récupère le nb de demandes de follow pendantes
+- Reducers `setPendingRequestsCount` / `decrementPendingRequestsCount` pour màj locale
+- État `pendingRequestsCount: number` exposé dans `AuthState` (lu par la cloche header + ProfileScreen)
 
 ### `src/store/slices/capturesSlice.ts` ✅
 
@@ -177,7 +206,13 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 
 ### `src/navigation/AppNavigator.tsx` ✅
 
-- Au démarrage : `initAuth` (lit AsyncStorage, rapide) → puis `refreshUser` en arrière-plan (fetche Supabase, màj silencieuse)
+- Au démarrage : `initAuth` (lit AsyncStorage, rapide) → puis `refreshUser` + `refreshPendingCount` en arrière-plan
+
+### `src/navigation/MainNavigator.tsx` ✅
+
+- Architecture : `MainStack` (NativeStack) qui wrappe `Tabs` (BottomTabs) → permet d'ouvrir des écrans hors-tabs (UserProfile, UserSearch, FollowList, FollowRequests)
+- Header droit des onglets Home + Classements : `BellHeaderButton` (cloche avec badge rouge du nb de demandes) + `SearchHeaderButton` (loupe)
+- Routes additionnelles : `UserProfile { userId }`, `UserSearch`, `FollowList { userId, type: 'followers'|'following' }`, `FollowRequests`
 
 ### `src/screens/captures/NewCaptureScreen.tsx` ✅
 
@@ -186,6 +221,35 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 ### `src/components/captures/CaptureCard.tsx` ✅
 
 - Guard défensif `capture.species?.icon ?? '🐟'` (évite crash si `species_data` null en base)
+- Avatar + username dans un `TouchableOpacity` → navigation vers `UserProfile { userId }`
+
+### `src/screens/profile/UserProfileScreen.tsx` ✅ (issue #12 — profil public)
+
+- Design moderne : hero coloré, compteurs sociaux (Captures · Abonnés · Abonnements) cliquables, bouton follow à 4 états, meilleure prise, spécialités, badges débloqués en scroll horizontal, captures en grille 2 colonnes adaptative (`flexBasis: 140 + flexGrow: 1`)
+- Bouton Follow : `Suivre` / `Demande envoyée` (gris ⏱) / `Abonné(e)` (gris ✓) / `Suivre en retour` (vert, quand theyFollowMe)
+- Banner "X souhaite te suivre" avec Accepter/Refuser direct si demande entrante
+
+### `src/screens/search/UserSearchScreen.tsx` ✅ (issue #14 — recherche)
+
+- Input avec autofocus + bouton clear, debounce 300ms
+- État vide : Top 10 pêcheurs (par XP), avec chip #1 #2... à gauche
+- Filtre le user courant des résultats
+
+### `src/screens/social/FollowListScreen.tsx` ✅
+
+- Liste abonnés OU abonnements selon param `type`, basée sur `UserRow` (composant réutilisable)
+
+### `src/screens/social/FollowRequestsScreen.tsx` ✅
+
+- Liste des demandes pendantes, boutons ✓ / ✕
+- Tap ✓ → ligne reste, bouton "Suivre en retour"
+- Tap "Suivre en retour" → chip "Demande envoyée"
+- `useFocusEffect` re-check les statuts au retour : si l'autre accepte, le chip devient "Abonné(e)" (vert)
+- Merge intelligent : les lignes actionnées restent même quand le fetch fresh ne les contient plus
+
+### `src/components/social/UserRow.tsx` ✅
+
+- Composant réutilisable : avatar + username + meta (niveau · location) + slot droite
 
 ---
 
@@ -202,6 +266,9 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 - ✅ Classements (table `rankings` peuplée par Edge Function)
 - ✅ Chat temps réel (Supabase Realtime)
 - ✅ Badges (affichage + progression)
+- ✅ **Profil public d'un autre pêcheur** (issue #12) — accessible depuis un avatar/username de capture
+- ✅ **Recherche d'utilisateurs** (issue #14) — loupe dans le header Home + Classements, top 10 en état vide
+- ✅ **Système de follow complet** (issue #13) — demandes pendantes, accept/decline, follow-back, compteurs auto, cloche header avec badge
 
 ---
 
@@ -211,9 +278,8 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 
 - **Écran détail d'une capture** : vue full-screen avec photos, likes, commentaires
 - **Système de commentaires** : poster/lire des commentaires sur une capture
-- **Page profil d'un autre utilisateur** : consulter les stats, captures, badges d'un autre pêcheur
-- **Système de follow** : suivre un utilisateur, onglet "Amis" dans les classements
-- **Recherche d'utilisateurs** dans le chat pour démarrer une conversation
+- **Onglet "Amis" dans les classements** : utiliser la table `follows` pour filtrer (le système de follow est en place)
+- **Démarrer une conversation depuis un profil** : le bouton "Message" est encore désactivé sur UserProfileScreen
 - **Logique de déblocage des badges** : trigger ou Edge Function qui check les conditions après chaque capture
 - **Mise à jour `user_stats` via Edge Function** : `global_rank` est mis à jour par l'Edge Function mais `regional_rank` n'existe pas encore
 
@@ -260,5 +326,6 @@ curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-
 | Stats pas à jour au redémarrage         | `initAuth` lisait seulement AsyncStorage → ajout de `refreshUser` en arrière-plan dans `AppNavigator` |
 | Edge Function "permission denied"       | Grants SQL pour `service_role`                                                                        |
 | `refresh_global_ranks()` inexistante    | Fonction créée séparément dans SQL Editor                                                             |
+| Compteurs follow ne décrémentent pas    | Trigger `handle_follow_change` recréé en `SECURITY DEFINER` (RLS bloquait l'UPDATE sur users)         |
 
 

@@ -30,6 +30,8 @@ export type MainStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
   UserProfile: { userId: string };
   UserSearch: undefined;
+  FollowList: { userId: string; type: 'followers' | 'following' };
+  FollowRequests: undefined;
 };
 
 export type RootStackParamList = {

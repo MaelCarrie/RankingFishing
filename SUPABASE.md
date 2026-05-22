@@ -18,6 +18,7 @@
 9. [Temps réel — Chat](#9-temps-réel--chat)
 10. [Edge Functions — Rankings automatiques](#10-edge-functions--rankings-automatiques)
 11. [Checklist de mise en production](#11-checklist-de-mise-en-production)
+12. [Système social — Recherche et follow](#12-système-social--recherche-et-follow-issues-12--14)
 
 ---
 
@@ -1070,6 +1071,145 @@ create or replace function increment_likes(p_capture_id uuid)
   p_capture_id;
   $$ language sql security definer;
 
+## 12. Système social — Recherche et follow (issues #12 — #14)
+
+Ajouts BD pour les fonctionnalités sociales : profil public, recherche d'utilisateurs, système de follow avec demandes d'acceptation.
+
+### 12.1 SQL à exécuter (idempotent — rejouable sans casse)
+
+```sql
+-- ─── 1. Compteurs sur users ─────────────────────────────────────────────────
+alter table users add column if not exists followers_count int not null default 0;
+alter table users add column if not exists following_count int not null default 0;
+
+-- ─── 2. Table follows (relations acceptées) ─────────────────────────────────
+create table if not exists follows (
+  follower_id uuid not null references users(id) on delete cascade,
+  followed_id uuid not null references users(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (follower_id, followed_id),
+  check (follower_id != followed_id)
+);
+create index if not exists follows_followed_id_idx on follows(followed_id);
+create index if not exists follows_follower_id_idx on follows(follower_id);
+
+-- ─── 3. Table follow_requests (en attente d'acceptation) ────────────────────
+create table if not exists follow_requests (
+  requester_id uuid not null references users(id) on delete cascade,
+  target_id    uuid not null references users(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  primary key (requester_id, target_id),
+  check (requester_id != target_id)
+);
+create index if not exists follow_requests_target_id_idx on follow_requests(target_id);
+
+-- ─── 4. Trigger : maj des compteurs (SECURITY DEFINER pour contourner RLS) ──
+create or replace function handle_follow_change() returns trigger
+language plpgsql security definer as $$
+begin
+  if (tg_op = 'INSERT') then
+    update users set following_count = following_count + 1 where id = new.follower_id;
+    update users set followers_count = followers_count + 1 where id = new.followed_id;
+  elsif (tg_op = 'DELETE') then
+    update users set following_count = greatest(following_count - 1, 0) where id = old.follower_id;
+    update users set followers_count = greatest(followers_count - 1, 0) where id = old.followed_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists follows_count_trigger on follows;
+create trigger follows_count_trigger
+after insert or delete on follows
+for each row execute function handle_follow_change();
+
+-- ─── 5. RPC : accepter une demande (atomique, SECURITY DEFINER) ─────────────
+create or replace function accept_follow_request(p_requester uuid)
+returns void language plpgsql security definer as $$
+declare v_target uuid := auth.uid();
+begin
+  if v_target is null then raise exception 'Non authentifié'; end if;
+  if not exists (select 1 from follow_requests
+                 where requester_id = p_requester and target_id = v_target) then
+    raise exception 'Demande introuvable';
+  end if;
+  delete from follow_requests where requester_id = p_requester and target_id = v_target;
+  insert into follows (follower_id, followed_id) values (p_requester, v_target)
+    on conflict do nothing;
+end;
+$$;
+
+-- ─── 6. RPC : refuser une demande ───────────────────────────────────────────
+create or replace function decline_follow_request(p_requester uuid)
+returns void language plpgsql security definer as $$
+declare v_target uuid := auth.uid();
+begin
+  if v_target is null then raise exception 'Non authentifié'; end if;
+  delete from follow_requests where requester_id = p_requester and target_id = v_target;
+end;
+$$;
+
+-- ─── 7. Row Level Security ──────────────────────────────────────────────────
+alter table follows enable row level security;
+alter table follow_requests enable row level security;
+
+drop policy if exists follows_select on follows;
+create policy follows_select on follows for select to authenticated using (true);
+
+drop policy if exists follows_delete on follows;
+create policy follows_delete on follows for delete to authenticated using (auth.uid() = follower_id);
+
+drop policy if exists follow_requests_select on follow_requests;
+create policy follow_requests_select on follow_requests for select to authenticated
+  using (auth.uid() = requester_id or auth.uid() = target_id);
+
+drop policy if exists follow_requests_insert on follow_requests;
+create policy follow_requests_insert on follow_requests for insert to authenticated
+  with check (auth.uid() = requester_id);
+
+drop policy if exists follow_requests_delete on follow_requests;
+create policy follow_requests_delete on follow_requests for delete to authenticated
+  using (auth.uid() = requester_id or auth.uid() = target_id);
+
+-- ─── 8. Réconciliation des compteurs (à exécuter une seule fois si désynchro)
+update users u set
+  followers_count = (select count(*) from follows where followed_id = u.id),
+  following_count = (select count(*) from follows where follower_id = u.id);
+```
+
+### 12.2 Architecture côté app
+
+| Couche               | Fichier                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| API recherche        | `src/api/users.ts` (`searchUsers`, `fetchTopUsers`)            |
+| API follow           | `src/api/follows.ts` (10 fonctions, incluant `fetchRelationship`) |
+| State Redux          | `auth.pendingRequestsCount` + thunk `refreshPendingCount`     |
+| Composant partagé    | `src/components/social/UserRow.tsx`                            |
+| Profil public        | `src/screens/profile/UserProfileScreen.tsx`                    |
+| Recherche            | `src/screens/search/UserSearchScreen.tsx`                      |
+| Listes               | `src/screens/social/FollowListScreen.tsx`                      |
+| Demandes pendantes   | `src/screens/social/FollowRequestsScreen.tsx`                  |
+
+### 12.3 Flux complet
+
+1. **A** ouvre le profil de **B** (tap sur avatar dans une capture, ou via recherche)
+2. **A** tap "Suivre" → row dans `follow_requests` (A→B). Bouton devient "Demande envoyée"
+3. **B** voit la cloche header avec pastille rouge (compteur via `refreshPendingCount`) OU le menu "Demandes (1)" sur son profil
+4. **B** ouvre la page demandes → tap ✓ → RPC `accept_follow_request(A)` → la demande est supprimée, row dans `follows` créée, trigger met à jour les compteurs
+5. La ligne reste visible avec le bouton "Suivre en retour" (état local)
+6. **B** tap "Suivre en retour" → row dans `follow_requests` (B→A). Chip "Demande envoyée"
+7. **A** accepte → trigger fire à nouveau, **B** voit "Abonné(e)" (vert) la prochaine fois qu'il revient sur la page (via `useFocusEffect` qui re-check `getFollowStatus`)
+
+### 12.4 Points de robustesse
+
+- **2 RPCs `SECURITY DEFINER`** pour accept/decline → opérations atomiques (delete request + insert follow dans la même transaction)
+- **Trigger `SECURITY DEFINER`** indispensable : sans ça, le DELETE de `follows` (direct, non-RPC) fire le trigger en mode `SECURITY INVOKER` et la RLS sur `users` bloque les UPDATE → compteurs désynchros
+- **Primary keys composées** sur les 2 tables → impossible d'avoir des doublons
+- **Cascade delete** sur `users(id)` → si un compte est supprimé, ses follows/demandes partent avec
+- **`check (follower_id != followed_id)`** → impossible de se suivre soi-même
+
+---
+
 ## Ordre recommandé d'implémentation
 
 ```
@@ -1083,10 +1223,11 @@ create or replace function increment_likes(p_capture_id uuid)
 Étape 8  →  Implémenter chat.ts + temps réel (sections 8.3 + 9)          ~1h
 Étape 9  →  Implémenter rankings.ts + badges.ts (sections 8.2 + 8.4)     ~45 min
 Étape 10 →  Edge Function rankings automatiques (section 10) — optionnel ~1h
+Étape 11 →  Système social — follow + recherche (section 12)             ~30 min
 ```
 
 **Temps total estimé : 1 journée de travail pour un MVP Supabase complet.**
 
 ---
 
-*Dernière mise à jour : 2026-05-19*
+*Dernière mise à jour : 2026-05-22*

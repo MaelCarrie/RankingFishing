@@ -46,6 +46,8 @@ export interface User {
   levelName: string;
   specialties: FishingSpecialty[];
   stats: UserStats;
+  followersCount: number;
+  followingCount: number;
   createdAt: string; // ISO date string
 }
 
@@ -182,6 +184,7 @@ export interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
+  pendingRequestsCount: number;
 }
 
 export interface CapturesState {

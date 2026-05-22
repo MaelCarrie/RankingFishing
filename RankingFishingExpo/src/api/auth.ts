@@ -81,6 +81,8 @@ export async function fetchUserProfile(userId: string): Promise<User> {
       regionalRank: data.user_stats?.regional_rank ?? null,
       challengesWon: data.user_stats?.challenges_won ?? 0,
     },
+    followersCount: data.followers_count ?? 0,
+    followingCount: data.following_count ?? 0,
     createdAt: data.created_at,
   };
 }

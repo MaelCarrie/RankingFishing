@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useAppSelector } from '../store';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,8 @@ import BadgesScreen from '../screens/profile/BadgesScreen';
 import CapturesScreen from '../screens/captures/CapturesScreen';
 import UserProfileScreen from '../screens/profile/UserProfileScreen';
 import UserSearchScreen from '../screens/search/UserSearchScreen';
+import FollowListScreen from '../screens/social/FollowListScreen';
+import FollowRequestsScreen from '../screens/social/FollowRequestsScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
@@ -62,9 +65,36 @@ function AddButton({ onPress }: { onPress: () => void }) {
 // Bouton loupe (header) → ouvre l'écran de recherche dans le MainStack parent
 function SearchHeaderButton({ onPress }: { onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.searchHeaderBtn}>
+    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerIconBtn}>
       <Ionicons name="search-outline" size={22} color={colors.primary} />
     </TouchableOpacity>
+  );
+}
+
+// Cloche (header) avec pastille rouge si demandes pendantes → ouvre FollowRequests
+function BellHeaderButton({ onPress }: { onPress: () => void }) {
+  const count = useAppSelector((s) => s.auth.pendingRequestsCount);
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerIconBtn}>
+      <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+      {count > 0 && (
+        <View style={styles.bellBadge}>
+          <Text style={styles.bellBadgeText}>{count > 9 ? '9+' : count}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// Groupe cloche + loupe pour le header droit
+function HeaderRightActions({ navigation }: { navigation: any }) {
+  const goSearch = () => navigation.getParent()?.navigate('UserSearch');
+  const goRequests = () => navigation.getParent()?.navigate('FollowRequests');
+  return (
+    <View style={styles.headerRightGroup}>
+      <BellHeaderButton onPress={goRequests} />
+      <SearchHeaderButton onPress={goSearch} />
+    </View>
   );
 }
 
@@ -98,9 +128,7 @@ function TabsNavigator() {
         options={({ navigation }) => ({
           title: 'Accueil',
           headerTitle: '🎣 RankingFishing',
-          headerRight: () => (
-            <SearchHeaderButton onPress={() => navigation.getParent()?.navigate('UserSearch')} />
-          ),
+          headerRight: () => <HeaderRightActions navigation={navigation} />,
         })}
       />
       <Tab.Screen
@@ -108,9 +136,7 @@ function TabsNavigator() {
         component={RankingsScreen}
         options={({ navigation }) => ({
           title: 'Classements',
-          headerRight: () => (
-            <SearchHeaderButton onPress={() => navigation.getParent()?.navigate('UserSearch')} />
-          ),
+          headerRight: () => <HeaderRightActions navigation={navigation} />,
         })}
       />
       <Tab.Screen
@@ -146,6 +172,16 @@ export default function MainNavigator() {
         component={UserSearchScreen}
         options={{ title: 'Rechercher', headerBackTitle: 'Retour' }}
       />
+      <MainStack.Screen
+        name="FollowList"
+        component={FollowListScreen}
+        options={{ title: 'Abonnés', headerBackTitle: 'Retour' }}
+      />
+      <MainStack.Screen
+        name="FollowRequests"
+        component={FollowRequestsScreen}
+        options={{ title: 'Demandes', headerBackTitle: 'Retour' }}
+      />
     </MainStack.Navigator>
   );
 }
@@ -177,8 +213,32 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
-  searchHeaderBtn: {
-    paddingHorizontal: 12,
+  headerIconBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    position: 'relative',
+  },
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 4,
+    backgroundColor: colors.error,
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
 });
