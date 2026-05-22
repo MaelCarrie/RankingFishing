@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Capture } from '../../store/types';
+import { MainStackParamList } from '../../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import Avatar from '../common/Avatar';
 import { formatWeight, formatSize, formatRelativeDate } from '../../utils/formatting';
@@ -18,16 +21,21 @@ interface Props {
 
 export default function CaptureCard({ capture, onLike, isPremium = false }: Props) {
   const canSeeLocation = isPremium || capture.userId === 'user_me';
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+
+  const goToProfile = () => navigation.navigate('UserProfile', { userId: capture.userId });
 
   return (
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
-        <Avatar username={capture.username} uri={capture.userAvatar} size={42} />
-        <View style={styles.headerInfo}>
-          <Text style={styles.username}>{capture.username}</Text>
-          <Text style={styles.date}>{formatRelativeDate(capture.publishedAt)}</Text>
-        </View>
+        <TouchableOpacity onPress={goToProfile} activeOpacity={0.7} style={styles.headerLeft}>
+          <Avatar username={capture.username} uri={capture.userAvatar} size={42} />
+          <View style={styles.headerInfo}>
+            <Text style={styles.username}>{capture.username}</Text>
+            <Text style={styles.date}>{formatRelativeDate(capture.publishedAt)}</Text>
+          </View>
+        </TouchableOpacity>
         {capture.validationScore >= 90 && (
           <View style={styles.validatedBadge}>
             <Ionicons name="checkmark-circle" size={14} color={colors.success} />
@@ -135,6 +143,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.md,
   },
+  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   headerInfo: { flex: 1, marginLeft: spacing.sm },
   username: { ...typography.h4, color: colors.textPrimary },
   date: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },

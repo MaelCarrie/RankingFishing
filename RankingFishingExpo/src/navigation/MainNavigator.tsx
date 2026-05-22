@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { MainTabParamList, ChatStackParamList, ProfileStackParamList } from './types';
+import { MainTabParamList, ChatStackParamList, ProfileStackParamList, MainStackParamList } from './types';
 import { colors, typography } from '../theme';
 
 import HomeScreen from '../screens/home/HomeScreen';
@@ -14,10 +14,13 @@ import ConversationScreen from '../screens/chat/ConversationScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import BadgesScreen from '../screens/profile/BadgesScreen';
 import CapturesScreen from '../screens/captures/CapturesScreen';
+import UserProfileScreen from '../screens/profile/UserProfileScreen';
+import UserSearchScreen from '../screens/search/UserSearchScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const MainStack = createNativeStackNavigator<MainStackParamList>();
 
 function ChatNavigator() {
   return (
@@ -56,7 +59,16 @@ function AddButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-export default function MainNavigator() {
+// Bouton loupe (header) → ouvre l'écran de recherche dans le MainStack parent
+function SearchHeaderButton({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.searchHeaderBtn}>
+      <Ionicons name="search-outline" size={22} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
+
+function TabsNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -80,8 +92,27 @@ export default function MainNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Accueil', headerTitle: '🎣 RankingFishing' }} />
-      <Tab.Screen name="Rankings" component={RankingsScreen} options={{ title: 'Classements' }} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={({ navigation }) => ({
+          title: 'Accueil',
+          headerTitle: '🎣 RankingFishing',
+          headerRight: () => (
+            <SearchHeaderButton onPress={() => navigation.getParent()?.navigate('UserSearch')} />
+          ),
+        })}
+      />
+      <Tab.Screen
+        name="Rankings"
+        component={RankingsScreen}
+        options={({ navigation }) => ({
+          title: 'Classements',
+          headerRight: () => (
+            <SearchHeaderButton onPress={() => navigation.getParent()?.navigate('UserSearch')} />
+          ),
+        })}
+      />
       <Tab.Screen
         name="NewCapture"
         component={NewCaptureScreen}
@@ -98,6 +129,24 @@ export default function MainNavigator() {
       <Tab.Screen name="Chat" component={ChatNavigator} options={{ title: 'Messages', headerShown: false }} />
       <Tab.Screen name="Profile" component={ProfileNavigator} options={{ title: 'Profil', headerShown: false }} />
     </Tab.Navigator>
+  );
+}
+
+export default function MainNavigator() {
+  return (
+    <MainStack.Navigator screenOptions={{ headerTintColor: colors.primary }}>
+      <MainStack.Screen name="Tabs" component={TabsNavigator} options={{ headerShown: false }} />
+      <MainStack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{ title: 'Profil', headerBackTitle: 'Retour' }}
+      />
+      <MainStack.Screen
+        name="UserSearch"
+        component={UserSearchScreen}
+        options={{ title: 'Rechercher', headerBackTitle: 'Retour' }}
+      />
+    </MainStack.Navigator>
   );
 }
 
@@ -127,5 +176,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 6,
+  },
+  searchHeaderBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
 });

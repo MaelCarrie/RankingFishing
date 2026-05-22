@@ -47,6 +47,25 @@ export async function fetchMyCaptures(userId: string): Promise<Capture[]> {
   return (data ?? []).map(mapCapture);
 }
 
+// ─── Captures publiques d'un autre utilisateur ────────────────────────────────
+
+export async function fetchUserPublicCaptures(userId: string): Promise<Capture[]> {
+  if (USE_MOCK_DATA) {
+    await delay(400);
+    return mockFeed.filter((c) => c.userId === userId && !c.isDraft);
+  }
+
+  const { data, error } = await supabase
+    .from('captures')
+    .select('*, capture_photos(*)')
+    .eq('user_id', userId)
+    .eq('is_draft', false)
+    .order('published_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapCapture);
+}
+
 // ─── Publier une capture ──────────────────────────────────────────────────────
 
 export async function publishCapture(
