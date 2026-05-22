@@ -67,7 +67,7 @@ export async function fetchUserPublicCaptures(userId: string): Promise<Capture[]
     .order('published_at', { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map(mapCapture);
+  return (data ?? []).map((row) => mapCapture(row));
 }
 
 // ─── Publier une capture ──────────────────────────────────────────────────────

@@ -31,6 +31,8 @@ export default function CaptureCard({
   isPremium = false,
 }: Props) {
   const canSeeLocation = isPremium || capture.userId === currentUserId;
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const goToProfile = () => navigation.navigate('UserProfile', { userId: capture.userId });
 
   return (
     <TouchableOpacity activeOpacity={0.97} onPress={() => onPress?.(capture)} disabled={!onPress}>
