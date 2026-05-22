@@ -5,11 +5,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { fetchRankings, setType, setPeriod } from '../../store/slices/rankingsSlice';
+import { fetchRankings, setType, setPeriod, setSpecies } from '../../store/slices/rankingsSlice';
 import { RankingEntry, RankingType, RankingPeriod } from '../../store/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import Avatar from '../../components/common/Avatar';
 import { formatScore, formatRank } from '../../utils/formatting';
+import { FISH_SPECIES } from '../../config/constants';
 
 const TYPE_TABS: { key: RankingType; label: string }[] = [
   { key: 'global', label: 'Global' },
@@ -61,16 +62,44 @@ function RankRow({ entry }: { entry: RankingEntry }) {
   );
 }
 
+function EmptyState({ type, hasRegion }: { type: RankingType; hasRegion: boolean }) {
+  let icon: keyof typeof Ionicons.glyphMap = 'trophy-outline';
+  let message = 'Aucun classement pour le moment.';
+
+  if (type === 'friends') {
+    icon = 'people-outline';
+    message = 'Le classement entre amis arrive bientôt.';
+  } else if (type === 'regional' && !hasRegion) {
+    icon = 'location-outline';
+    message = 'Renseignez votre région dans votre profil pour apparaître au classement régional.';
+  } else if (type === 'regional') {
+    icon = 'location-outline';
+    message = 'Aucune capture dans votre région pour cette période.';
+  } else if (type === 'species') {
+    icon = 'fish-outline';
+    message = 'Aucune capture pour cette espèce sur cette période.';
+  }
+
+  return (
+    <View style={styles.empty}>
+      <Ionicons name={icon} size={40} color={colors.textSecondary} />
+      <Text style={styles.emptyText}>{message}</Text>
+    </View>
+  );
+}
+
 export default function RankingsScreen() {
   const dispatch = useAppDispatch();
-  const { entries, currentUserRank, type, period, isLoading } = useAppSelector((s) => s.rankings);
+  const { entries, currentUserRank, type, period, selectedSpecies, isLoading } = useAppSelector((s) => s.rankings);
+  const userRegion = useAppSelector((s) => s.auth.user?.region);
 
   useEffect(() => {
     dispatch(fetchRankings({ type, period }));
-  }, [dispatch, type, period]);
+  }, [dispatch, type, period, selectedSpecies]);
 
-  const top3 = entries.filter((e) => !e.isCurrentUser).slice(0, 3);
-  const rest = entries.filter((e) => !e.isCurrentUser).slice(3);
+  const hasPodium = entries.length >= 3;
+  const top3 = hasPodium ? entries.slice(0, 3) : [];
+  const rest = hasPodium ? entries.slice(3) : entries;
 
   return (
     <View style={styles.container}>
@@ -100,42 +129,62 @@ export default function RankingsScreen() {
         ))}
       </ScrollView>
 
+      {/* Species selector (par espèce uniquement) */}
+      {type === 'species' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.speciesTabs} contentContainerStyle={styles.typeTabsContent}>
+          {FISH_SPECIES.map((sp) => (
+            <TouchableOpacity
+              key={sp.id}
+              style={[styles.speciesTab, selectedSpecies === sp.id && styles.speciesTabActive]}
+              onPress={() => dispatch(setSpecies(sp.id))}
+            >
+              <Text style={styles.speciesIcon}>{sp.icon}</Text>
+              <Text style={[styles.speciesTabText, selectedSpecies === sp.id && styles.speciesTabTextActive]}>{sp.nameFr}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {isLoading ? (
         <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>
       ) : (
-        <FlatList
-          data={rest}
-          keyExtractor={(e) => e.userId}
-          renderItem={({ item }) => <RankRow entry={item} />}
-          ListHeaderComponent={
-            <>
-              {/* Podium */}
-              {top3.length === 3 && (
-                <View style={styles.podium}>
-                  <PodiumEntry entry={top3[1]} position={1} />
-                  <PodiumEntry entry={top3[0]} position={0} />
-                  <PodiumEntry entry={top3[2]} position={2} />
-                </View>
-              )}
+        <>
+          <FlatList
+            style={styles.flatList}
+            data={rest}
+            keyExtractor={(e) => e.userId}
+            renderItem={({ item }) => <RankRow entry={item} />}
+            ListHeaderComponent={
+              <>
+                {/* Podium */}
+                {top3.length === 3 && (
+                  <View style={styles.podium}>
+                    <PodiumEntry entry={top3[1]} position={1} />
+                    <PodiumEntry entry={top3[0]} position={0} />
+                    <PodiumEntry entry={top3[2]} position={2} />
+                  </View>
+                )}
 
-              <Text style={styles.listTitle}>Classement complet</Text>
-            </>
-          }
-          ListFooterComponent={
-            currentUserRank ? (
-              <View style={styles.myRankBanner}>
-                <Ionicons name="person-circle-outline" size={18} color={colors.primary} />
-                <Text style={styles.myRankText}>
-                  Mon rang : <Text style={styles.myRankValue}>{formatRank(currentUserRank.rank)}</Text>
-                  {'  ·  '}
-                  <Text style={styles.myRankValue}>{formatScore(currentUserRank.score)}</Text>
-                </Text>
-              </View>
-            ) : null
-          }
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        />
+                {rest.length > 0 && <Text style={styles.listTitle}>Classement complet</Text>}
+              </>
+            }
+            ListEmptyComponent={entries.length === 0 ? <EmptyState type={type} hasRegion={!!userRegion} /> : null}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          />
+
+          {/* Mon rang — épinglé en bas de page */}
+          {currentUserRank && (
+            <View style={styles.myRankBanner}>
+              <Ionicons name="person-circle-outline" size={18} color={colors.primary} />
+              <Text style={styles.myRankText}>
+                Mon rang : <Text style={styles.myRankValue}>{formatRank(currentUserRank.rank)}</Text>
+                {'  ·  '}
+                <Text style={styles.myRankValue}>{formatScore(currentUserRank.score)}</Text>
+              </Text>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -144,7 +193,8 @@ export default function RankingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { paddingBottom: spacing.xxl },
+  flatList: { flex: 1 },
+  list: { paddingBottom: spacing.xxl, flexGrow: 1 },
 
   // Type tabs
   typeTabs: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
@@ -172,6 +222,28 @@ const styles = StyleSheet.create({
   periodTabActive: { borderColor: colors.secondary, backgroundColor: colors.premiumBg },
   periodTabText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   periodTabTextActive: { color: colors.secondaryDark },
+
+  // Species selector
+  speciesTabs: { maxHeight: 44, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  speciesTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  speciesTabActive: { borderColor: colors.primary, backgroundColor: colors.surfaceVariant },
+  speciesIcon: { fontSize: 14 },
+  speciesTabText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  speciesTabTextActive: { color: colors.primary },
+
+  // Empty state
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl, gap: spacing.md },
+  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 
   // Podium
   podium: {
@@ -249,7 +321,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceVariant,
     borderRadius: borderRadius.lg,
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.primary + '40',

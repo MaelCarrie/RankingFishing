@@ -83,6 +83,7 @@ create table public.users (
   avatar_url text,
   bio text default '',
   location text default '',         -- texte libre ex: "Bretagne, France"
+  region text,                      -- région normalisée (liste FR) pour le classement régional
   is_premium boolean default false,
   xp integer default 0,
   level integer default 1 check (level between 1 and 7),
@@ -247,10 +248,12 @@ create table public.rankings (
   score integer default 0,
   capture_count integer default 0,
   top_species text,
+  species text not null default '',  -- id de l'espèce pour type='species', sinon ''
+  region text,                       -- région pour type='regional', sinon null
   level integer default 1,
   rank integer not null,
   updated_at timestamptz default now(),
-  unique (type, period, user_id)
+  unique (type, period, species, user_id)
 );
 
 -- ─── Index pour les performances ─────────────────────────────────────────────

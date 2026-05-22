@@ -40,6 +40,7 @@ export interface User {
   avatar?: string;
   bio?: string;
   location?: string;
+  region?: string;
   isPremium: boolean;
   xp: number;
   level: number;
@@ -143,6 +144,8 @@ export interface RankingEntry {
   score: number;
   totalCaptures: number;
   topSpecies?: string;
+  region?: string;
+  species?: string;
   isCurrentUser?: boolean;
 }
 
@@ -197,6 +200,7 @@ export interface RankingsState {
   currentUserRank: RankingEntry | null;
   type: RankingType;
   period: RankingPeriod;
+  selectedSpecies: string; // species_id pour le classement par espèce
   isLoading: boolean;
   error: string | null;
 }

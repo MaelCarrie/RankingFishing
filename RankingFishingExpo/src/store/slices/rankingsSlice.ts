@@ -1,12 +1,19 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { RankingsState, RankingType, RankingPeriod } from '../types';
+import type { RootState } from '../index';
 import * as rankingsApi from '../../api/rankings';
 
 export const fetchRankings = createAsyncThunk(
   'rankings/fetch',
-  async (payload: { type: RankingType; period: RankingPeriod }, { rejectWithValue }) => {
+  async (payload: { type: RankingType; period: RankingPeriod }, { getState, rejectWithValue }) => {
     try {
-      return await rankingsApi.fetchRankings(payload.type, payload.period);
+      const state = getState() as RootState;
+      const entries = await rankingsApi.fetchRankings(payload.type, payload.period, {
+        region: state.auth.user?.region,
+        species: state.rankings.selectedSpecies,
+      });
+      const currentUserId = state.auth.user?.id;
+      return entries.map((e) => ({ ...e, isCurrentUser: e.userId === currentUserId }));
     } catch (e: any) {
       return rejectWithValue(e.message);
     }
@@ -18,6 +25,7 @@ const initialState: RankingsState = {
   currentUserRank: null,
   type: 'global',
   period: 'alltime',
+  selectedSpecies: 'carp',
   isLoading: false,
   error: null,
 };
@@ -28,6 +36,7 @@ const rankingsSlice = createSlice({
   reducers: {
     setType(state, action: PayloadAction<RankingType>) { state.type = action.payload; },
     setPeriod(state, action: PayloadAction<RankingPeriod>) { state.period = action.payload; },
+    setSpecies(state, action: PayloadAction<string>) { state.selectedSpecies = action.payload; },
   },
   extraReducers: (builder) => {
     builder
@@ -44,5 +53,5 @@ const rankingsSlice = createSlice({
   },
 });
 
-export const { setType, setPeriod } = rankingsSlice.actions;
+export const { setType, setPeriod, setSpecies } = rankingsSlice.actions;
 export default rankingsSlice.reducer;

@@ -17,6 +17,7 @@ export interface RegisterData {
   email: string;
   password: string;
   username: string;
+  region?: string;
   specialties?: string[];
 }
 
@@ -68,6 +69,7 @@ export async function fetchUserProfile(userId: string): Promise<User> {
     avatar: data.avatar_url ?? undefined,
     bio: data.bio ?? '',
     location: data.location ?? '',
+    region: data.region ?? undefined,
     isPremium: data.is_premium ?? false,
     xp: data.xp ?? 0,
     level: data.level ?? 1,
@@ -117,6 +119,7 @@ export async function register(data: RegisterData): Promise<User> {
       id: generateId(),
       email: data.email,
       username: data.username,
+      region: data.region,
       xp: 0,
       level: 1,
       levelName: 'Novice',
@@ -152,6 +155,7 @@ export async function register(data: RegisterData): Promise<User> {
     id: userId,
     email: data.email,
     username: data.username,
+    region: data.region ?? null,
     xp: 0,
     level: 1,
     level_name: 'Novice',
@@ -173,6 +177,26 @@ export async function register(data: RegisterData): Promise<User> {
   const newUser = await fetchUserProfile(userId);
   await storeUser(newUser);
   return newUser;
+}
+
+// ─── Mise à jour du profil ───────────────────────────────────────────────────
+
+export async function updateProfile(
+  userId: string,
+  fields: { region?: string; bio?: string; location?: string }
+): Promise<User> {
+  if (USE_MOCK_DATA) {
+    await delay(400);
+    const current = await getStoredUser();
+    const updated = { ...(current as User), ...fields };
+    await storeUser(updated);
+    return updated;
+  }
+
+  const { error } = await supabase.from('users').update(fields).eq('id', userId);
+  if (error) throw error;
+
+  return refreshAndStoreUser(userId);
 }
 
 // ─── Déconnexion ─────────────────────────────────────────────────────────────

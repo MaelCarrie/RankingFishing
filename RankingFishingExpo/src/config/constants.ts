@@ -33,6 +33,30 @@ export const FISH_SPECIES: FishSpecies[] = [
   { id: 'asp', name: 'Asp', nameFr: 'Aspe', category: 'freshwater', icon: '🐠', scoreCoefficient: 2.2, rarityScore: 16 },
 ];
 
+// Régions françaises (valeur normalisée pour les classements régionaux)
+export const FR_REGIONS = [
+  'Auvergne-Rhône-Alpes',
+  'Bourgogne-Franche-Comté',
+  'Bretagne',
+  'Centre-Val de Loire',
+  'Corse',
+  'Grand Est',
+  'Hauts-de-France',
+  'Île-de-France',
+  'Normandie',
+  'Nouvelle-Aquitaine',
+  'Occitanie',
+  'Pays de la Loire',
+  "Provence-Alpes-Côte d'Azur",
+  'Guadeloupe',
+  'Martinique',
+  'Guyane',
+  'La Réunion',
+  'Mayotte',
+] as const;
+
+export type FrRegion = (typeof FR_REGIONS)[number];
+
 // Labels des types de pêche
 export const FISHING_TYPE_LABELS: Record<FishingType, string> = {
   carp: 'Carpiste',

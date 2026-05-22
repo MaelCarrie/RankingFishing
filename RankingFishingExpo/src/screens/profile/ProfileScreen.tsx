@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert
 } from 'react-native';
@@ -7,12 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { signOut } from '../../store/slices/authSlice';
+import { signOut, updateProfile } from '../../store/slices/authSlice';
 import { ProfileStackParamList } from '../../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import Avatar from '../../components/common/Avatar';
 import { formatWeight, formatRank, formatXP } from '../../utils/formatting';
-import { FISHING_TYPE_LABELS } from '../../config/constants';
+import { FISHING_TYPE_LABELS, FR_REGIONS } from '../../config/constants';
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
 
@@ -23,8 +23,15 @@ export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<Nav>();
   const { user } = useAppSelector((s) => s.auth);
+  const [editingRegion, setEditingRegion] = useState(false);
 
   if (!user) return null;
+
+  function selectRegion(region: string) {
+    setEditingRegion(false);
+    if (region === user!.region) return;
+    dispatch(updateProfile({ userId: user!.id, fields: { region } }));
+  }
 
   const xpNextLevel = [0, 200, 500, 1000, 2000, 4000, 8000];
   const currentLevelXp = xpNextLevel[user.level - 1] ?? 0;
@@ -104,6 +111,37 @@ export default function ProfileScreen() {
             </Text>
             <Text style={styles.statLabel}>Rang régional</Text>
           </View>
+        </View>
+
+        {/* Région */}
+        <View style={styles.card}>
+          <View style={styles.regionHeader}>
+            <Text style={styles.cardTitle}>📍 Ma région</Text>
+            <TouchableOpacity onPress={() => setEditingRegion((v) => !v)}>
+              <Text style={styles.regionEdit}>{editingRegion ? 'Fermer' : 'Modifier'}</Text>
+            </TouchableOpacity>
+          </View>
+          {editingRegion ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionChips}>
+              {FR_REGIONS.map((r) => {
+                const selected = user.region === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.regionChip, selected && styles.regionChipSelected]}
+                    onPress={() => selectRegion(r)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.regionChipText, selected && styles.regionChipTextSelected]}>{r}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <Text style={styles.regionValue}>
+              {user.region ?? 'Non renseignée — appuie sur Modifier pour apparaître au classement régional.'}
+            </Text>
+          )}
         </View>
 
         {/* Meilleure prise */}
@@ -257,6 +295,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   cardTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: spacing.md },
+
+  regionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  regionEdit: { ...typography.bodySmall, color: colors.primary, fontWeight: '700', marginBottom: spacing.md },
+  regionValue: { ...typography.body, color: colors.textSecondary },
+  regionChips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  regionChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  regionChipSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceVariant },
+  regionChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
+  regionChipTextSelected: { color: colors.primary, fontWeight: '700' },
   bestFishRow: { flexDirection: 'row', justifyContent: 'space-between' },
   bestFishStat: { alignItems: 'center' },
   bestFishLabel: { ...typography.caption, color: colors.textSecondary },

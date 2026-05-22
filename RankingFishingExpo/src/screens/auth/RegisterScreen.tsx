@@ -10,7 +10,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { register, clearError } from '../../store/slices/authSlice';
 import { validateEmail, validatePassword, validatePasswordConfirm, validateUsername } from '../../utils/validation';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { FISHING_TYPE_LABELS } from '../../config/constants';
+import { FISHING_TYPE_LABELS, FR_REGIONS } from '../../config/constants';
 import { FishingType } from '../../store/types';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -28,6 +28,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<FishingType[]>([]);
+  const [region, setRegion] = useState<string | null>(null);
   const [cguAccepted, setCguAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
@@ -52,7 +53,7 @@ export default function RegisterScreen({ navigation }: Props) {
   async function handleRegister() {
     if (!validate()) return;
     dispatch(clearError());
-    dispatch(register({ email, password, username }));
+    dispatch(register({ email, password, username, region: region ?? undefined }));
   }
 
   return (
@@ -133,6 +134,29 @@ export default function RegisterScreen({ navigation }: Props) {
                   >
                     <Text style={[styles.typeChipText, selected && styles.typeChipTextSelected]}>
                       {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Région */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ma région</Text>
+            <Text style={styles.sectionHint}>Pour le classement régional (optionnel)</Text>
+            <View style={styles.typesGrid}>
+              {FR_REGIONS.map((r) => {
+                const selected = region === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.typeChip, selected && styles.typeChipSelected]}
+                    onPress={() => setRegion(selected ? null : r)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.typeChipText, selected && styles.typeChipTextSelected]}>
+                      {r}
                     </Text>
                   </TouchableOpacity>
                 );

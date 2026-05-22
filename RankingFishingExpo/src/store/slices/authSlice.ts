@@ -21,7 +21,7 @@ export const signIn = createAsyncThunk(
 
 export const register = createAsyncThunk(
   'auth/register',
-  async (data: { email: string; password: string; username: string }, { rejectWithValue }) => {
+  async (data: authApi.RegisterData, { rejectWithValue }) => {
     try {
       return await authApi.register(data);
     } catch (e: any) {
@@ -38,6 +38,20 @@ export const refreshUser = createAsyncThunk(
   'auth/refresh',
   async (userId: string) => {
     return await authApi.refreshAndStoreUser(userId);
+  }
+);
+
+export const updateProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (
+    payload: { userId: string; fields: { region?: string; bio?: string; location?: string } },
+    { rejectWithValue }
+  ) => {
+    try {
+      return await authApi.updateProfile(payload.userId, payload.fields);
+    } catch (e: any) {
+      return rejectWithValue(e.message ?? 'Mise à jour échouée');
+    }
   }
 );
 
@@ -124,6 +138,14 @@ const authSlice = createSlice({
     // refreshUser
     builder.addCase(refreshUser.fulfilled, (state, action) => {
       state.user = action.payload;
+    });
+
+    // updateProfile
+    builder.addCase(updateProfile.fulfilled, (state, action) => {
+      state.user = action.payload;
+    });
+    builder.addCase(updateProfile.rejected, (state, action) => {
+      state.error = action.payload as string;
     });
   },
 });
