@@ -12,7 +12,11 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "target": "ESNext"
+    "target": "ESNext",
+    "types": [
+      "jest",
+      "node"
+    ]
   },
   "exclude": [
     "node_modules",

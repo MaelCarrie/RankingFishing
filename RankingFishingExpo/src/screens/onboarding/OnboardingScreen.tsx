@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,7 +49,7 @@ const SLIDES = [
 export default function OnboardingScreen({ onDone }: Props) {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [index, setIndex] = useState(0);
   const isLast = index === SLIDES.length - 1;
 

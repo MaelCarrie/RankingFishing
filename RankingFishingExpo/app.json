@@ -7,11 +7,6 @@
     "icon": "./assets/brand/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F5F5F0",
-    "splash": {
-      "image": "./assets/brand/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#021124"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -37,6 +32,15 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "RankingFishing accède à votre position pour géolocaliser vos captures (fonctionnalité Premium)."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#021124",
+          "imageWidth": 200
         }
       ]
     ],

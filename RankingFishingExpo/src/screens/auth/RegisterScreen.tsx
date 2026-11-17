@@ -17,6 +17,7 @@ import Button from '../../components/ui/Button';
 import Chip from '../../components/ui/Chip';
 import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/common/Input';
+import { dismissOnDrag } from '../../components/common/KeyboardDoneBar';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'> };
 
@@ -65,7 +66,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <View style={styles.topBar}>
           <IconButton icon="chevron-back" iconSize={26} accessibilityLabel="Retour" onPress={() => navigation.goBack()} />
         </View>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} {...dismissOnDrag}>
           <Text style={styles.title} accessibilityRole="header">Créer un compte</Text>
           <Text style={styles.subtitle}>Publie tes prises et entre au classement de ta région.</Text>
 

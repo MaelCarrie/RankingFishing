@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -18,7 +18,8 @@ import Chip from '../../components/ui/Chip';
 import SegmentedControl from '../../components/ui/SegmentedControl';
 import { useToast } from '../../components/ui/Toast';
 import ActionSheet from '../../components/common/ActionSheet';
-import { confirmAction } from '../../utils/dialog';
+import { afterModalClose, askSaveBeforeLeaving } from '../../utils/dialog';
+import KeyboardDoneBar, { dismissOnDrag, keyboardDoneProps } from '../../components/common/KeyboardDoneBar';
 
 const FISHING_TYPES = Object.keys(FISHING_TYPE_LABELS) as FishingType[];
 const LEVEL_OPTIONS: { value: ExpertiseLevel; label: string }[] = [
@@ -62,28 +63,34 @@ export default function EditProfileScreen() {
     );
   }, [user, avatarUri, bio, location, region, specialties]);
 
-  // Quitter avec des modifications non enregistrées : confirmation
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (!dirty || saving || allowLeave.current) return;
-      e.preventDefault();
-      confirmAction({
-        title: 'Abandonner les modifications ?',
-        message: "Tes changements de profil ne seront pas enregistrés.",
-        confirmLabel: 'Abandonner',
-        cancelLabel: 'Continuer la saisie',
-        destructive: true,
-      }).then((ok) => { if (ok) navigation.dispatch(e.data.action); });
+  // Quitter avec des modifications non enregistrées : Enregistrer / Ne pas
+  // enregistrer / Continuer. usePreventRemove gère aussi le geste retour iOS et
+  // le bouton retour Android de la pile native (beforeRemove seul ne le faisait pas).
+  usePreventRemove(dirty && !saving, ({ data }) => {
+    if (allowLeave.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    askSaveBeforeLeaving({
+      message: 'Tes changements de profil ne sont pas encore enregistrés.',
+    }).then((choice) => {
+      if (choice === 'discard') {
+        allowLeave.current = true;
+        navigation.dispatch(data.action);
+      } else if (choice === 'save') {
+        handleSave(data.action);
+      }
     });
-    return unsubscribe;
-  }, [navigation, dirty, saving]);
+  });
 
   if (!user) return null;
 
   // ─── Avatar ─────────────────────────────────────────────────────────────────
 
   async function pickFromLibrary() {
+    const fromSheet = photoSheetOpen;
     setPhotoSheetOpen(false);
+    if (fromSheet) await afterModalClose();
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -98,7 +105,9 @@ export default function EditProfileScreen() {
   }
 
   async function takePhoto() {
+    const fromSheet = photoSheetOpen;
     setPhotoSheetOpen(false);
+    if (fromSheet) await afterModalClose();
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -138,7 +147,7 @@ export default function EditProfileScreen() {
 
   // ─── Enregistrement ─────────────────────────────────────────────────────────
 
-  async function handleSave() {
+  async function handleSave(pendingAction?: Parameters<typeof navigation.dispatch>[0]) {
     if (!dirty || saving) return;
     setSaving(true);
     setError(null);
@@ -155,7 +164,8 @@ export default function EditProfileScreen() {
     if (saveProfileSettings.fulfilled.match(result)) {
       toast.show('Profil enregistré', { tone: 'success' });
       allowLeave.current = true;
-      navigation.goBack();
+      if (pendingAction) navigation.dispatch(pendingAction);
+      else navigation.goBack();
       return;
     }
     setError((result.payload as string) ?? "L'enregistrement a échoué. Réessaie dans un instant.");
@@ -171,7 +181,7 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="edit-profile">
+        <ScrollView contentContainerStyle={styles.content} {...dismissOnDrag} testID="edit-profile">
           {/* Photo */}
           <View style={styles.avatarBlock}>
             <Avatar username={user.username} uri={avatarUri ?? user.avatar} size={96} premium={user.isPremium} />
@@ -206,6 +216,7 @@ export default function EditProfileScreen() {
               placeholder="Ta pêche en quelques mots : techniques, eaux favorites…"
               placeholderTextColor={colors.textDisabled}
               multiline
+              {...keyboardDoneProps}
               style={[styles.input, styles.textarea]}
               editable={!saving}
               accessibilityLabelledBy="bioLabel"
@@ -305,7 +316,7 @@ export default function EditProfileScreen() {
 
           <Button
             title="Enregistrer le profil"
-            onPress={handleSave}
+            onPress={() => handleSave()}
             loading={saving}
             disabled={!dirty || saving}
             fullWidth
@@ -323,6 +334,7 @@ export default function EditProfileScreen() {
           { key: 'library', label: 'Choisir dans la galerie', icon: 'images-outline', onPress: pickFromLibrary },
         ]}
       />
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

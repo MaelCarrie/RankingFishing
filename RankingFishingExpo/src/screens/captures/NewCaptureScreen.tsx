@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, Pressable, Image, FlatList, Modal,
   KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -36,6 +37,8 @@ import BadgeUnlockHost from '../../components/badges/BadgeUnlockHost';
 import { formatInt } from '../../components/ui/format';
 import { RankDelta } from '../../components/ui/RankBadge';
 import { MainStackParamList, MainTabParamList } from '../../navigation/types';
+import KeyboardDoneBar, { dismissOnDrag, keyboardDoneProps } from '../../components/common/KeyboardDoneBar';
+import { afterModalClose } from '../../utils/dialog';
 
 type Nav = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'NewCapture'>,
@@ -107,7 +110,7 @@ export default function NewCaptureScreen() {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const isBusy = phase !== 'idle';
   const { width: windowWidth } = useWindowDimensions();
   // 3 vignettes carrées sur la largeur du formulaire (marges 16 + 2 espaces de 8)
@@ -186,7 +189,9 @@ export default function NewCaptureScreen() {
   }
 
   async function pickFromLibrary() {
+    const fromSheet = photoSheetOpen;
     setPhotoSheetOpen(false);
+    if (fromSheet) await afterModalClose();
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -201,7 +206,9 @@ export default function NewCaptureScreen() {
   }
 
   async function takePhoto() {
+    const fromSheet = photoSheetOpen;
     setPhotoSheetOpen(false);
+    if (fromSheet) await afterModalClose();
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -384,7 +391,7 @@ export default function NewCaptureScreen() {
           ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+          {...dismissOnDrag}
           testID="new-capture-form"
         >
           {/* Retour après publication */}
@@ -534,6 +541,7 @@ export default function NewCaptureScreen() {
                 value={form.weightKg}
                 onChangeText={(v) => { update('weightKg', v); clearField('weight'); }}
                 keyboardType="decimal-pad"
+                {...keyboardDoneProps}
                 placeholder="0"
                 suffix="kg"
                 containerStyle={styles.measureInput}
@@ -546,6 +554,7 @@ export default function NewCaptureScreen() {
                 value={form.weightGrams}
                 onChangeText={(v) => { update('weightGrams', v); clearField('weight'); }}
                 keyboardType="number-pad"
+                {...keyboardDoneProps}
                 placeholder="0"
                 suffix="g"
                 containerStyle={styles.measureInput}
@@ -568,6 +577,7 @@ export default function NewCaptureScreen() {
                 value={form.sizeCm}
                 onChangeText={(v) => { update('sizeCm', v); clearField('size'); }}
                 keyboardType="decimal-pad"
+                {...keyboardDoneProps}
                 placeholder="0"
                 suffix="cm"
                 containerStyle={styles.measureInput}
@@ -627,6 +637,7 @@ export default function NewCaptureScreen() {
               value={form.description}
               onChangeText={(v) => update('description', v.slice(0, DESCRIPTION_MAX))}
               multiline
+              {...keyboardDoneProps}
               numberOfLines={3}
               placeholder="Technique, appât, conditions, anecdote…"
               style={styles.textarea}
@@ -753,6 +764,7 @@ export default function NewCaptureScreen() {
 
       {/* Moment signature : feuille à liseré or, un badge à la fois */}
       <BadgeUnlockHost />
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

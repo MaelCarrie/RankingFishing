@@ -1,6 +1,6 @@
 # RankingFishingExpo
 
-Application mobile RankingFishing : React Native 0.81, Expo SDK 54, TypeScript, Redux Toolkit, avec Supabase comme backend.
+Application mobile RankingFishing : React Native 0.88, Expo SDK 58, TypeScript, Redux Toolkit, avec Supabase comme backend.
 
 ## Prérequis
 
@@ -57,7 +57,7 @@ Appelle l'Edge Function `recalculate-rankings` (script `scripts/recalc-rankings.
 | Commande | Ce qu'elle lance |
 | -------- | ---------------- |
 | `npm test` | Tests unitaires jest (`__tests__/`) : slices Redux, utilitaires, API mock. 115 tests |
-| `npm run e2e` | Tests E2E Playwright (`e2e/`) sur Expo web en mode mock, Chromium mobile 390×844. 10 tests |
+| `npm run e2e` | Tests E2E Playwright (`e2e/`) sur Expo web en mode mock, Chromium mobile 390×844. 12 tests |
 
 `npm run e2e` démarre `npm run web:mock` tout seul, ou réutilise un serveur déjà lancé sur le port 8082. Les traces et captures d'échec vont dans `e2e/.results/`.
 

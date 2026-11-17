@@ -8,6 +8,7 @@ import UserRow from '../social/UserRow';
 import { EmptyState, ErrorState, Skeleton } from '../ui';
 import { UserSearchResult, searchUsers, fetchTopUsers } from '../../api/users';
 import { fetchFollowing } from '../../api/follows';
+import { dismissOnDrag } from '../common/KeyboardDoneBar';
 
 interface Props {
   currentUserId?: string;
@@ -139,9 +140,9 @@ export default function ChatUserPicker({
       <SectionList
         sections={loading && sections.length === 0 ? [] : sections}
         keyExtractor={(u) => u.id}
-        keyboardShouldPersistTaps="handled"
+        {...dismissOnDrag}
         stickySectionHeadersEnabled={false}
-        ListHeaderComponent={!query.trim() ? emptyQueryHeader ?? null : null}
+        ListHeaderComponent={!query.trim() ? emptyQueryHeader ?? undefined : undefined}
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionTitle}>{section.title}</Text>
         )}

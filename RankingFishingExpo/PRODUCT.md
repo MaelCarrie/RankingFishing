@@ -31,7 +31,7 @@ Strava for fishing: a catch is a scored, ranked performance (score from species,
 
 ## Capabilities and Constraints
 
-- Stack: React Native 0.81 + Expo SDK 54 + TypeScript, React Navigation v7, Redux Toolkit, Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions).
+- Stack: React Native 0.88 + Expo SDK 58 + TypeScript, React Navigation v7, Redux Toolkit, Supabase (Auth, Postgres + RLS, Storage, Realtime, Edge Functions).
 - Features: email/password auth, catch feed with likes and comments, catch detail, catch publishing with up to 3 photos, profile stats and XP via SQL triggers, rankings (global / species / region / friends, by period), badges with progress, realtime chat, user search, follow system, public profiles.
 - SQL migrations are applied manually by the developer in the Supabase SQL editor.
 - Not yet built (needs external accounts/keys): Google OAuth, OS push notifications, Stripe/Apple Pay/Google Pay subscription, Premium spot map.

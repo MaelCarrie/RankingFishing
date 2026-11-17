@@ -4,6 +4,7 @@ import {
   Dimensions, FlatList, Modal, TextInput, KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import type { ScrollViewInstance, TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +28,7 @@ import ShareCaptureSheet from '../../components/captures/ShareCaptureSheet';
 import { confirmAction, notify } from '../../utils/dialog';
 import { WEATHER_META } from '../../utils/weather';
 import { formatDate, formatRelativeDate } from '../../utils/formatting';
+import KeyboardDoneBar, { dismissOnDrag, keyboardDoneProps } from '../../components/common/KeyboardDoneBar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GALLERY_HEIGHT = SCREEN_WIDTH * 0.75; // photo 4:3
@@ -55,8 +57,8 @@ export default function CaptureDetailScreen() {
   const [posting, setPosting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInputInstance>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const insets = useSafeAreaInsets();
 
   const isOwner = capture.userId === user?.id;
@@ -154,7 +156,7 @@ export default function CaptureDetailScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} {...dismissOnDrag}>
         {/* Galerie photos (4:3, pleine largeur) */}
         {photos.length > 0 ? (
           <View>
@@ -354,6 +356,7 @@ export default function CaptureDetailScreen() {
           placeholderTextColor={colors.inkTertiary}
           selectionColor={colors.primary}
           multiline
+          {...keyboardDoneProps}
           maxLength={1000}
           accessibilityLabel="Ton commentaire"
           testID="comment-input"
@@ -406,6 +409,7 @@ export default function CaptureDetailScreen() {
       {shareOpen && (
         <ShareCaptureSheet capture={capture} visible={shareOpen} onClose={() => setShareOpen(false)} />
       )}
+      <KeyboardDoneBar />
     </KeyboardAvoidingView>
   );
 }

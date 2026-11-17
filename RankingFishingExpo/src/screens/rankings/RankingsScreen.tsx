@@ -181,7 +181,7 @@ export default function RankingsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={!!isRefreshing}
-            onRefresh={() => load(true)}
+            onRefresh={() => { void load(true); }}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />

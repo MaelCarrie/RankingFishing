@@ -11,6 +11,7 @@ import { colors, spacing, typography, borderRadius } from '../../theme';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/common/Input';
+import { dismissOnDrag } from '../../components/common/KeyboardDoneBar';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'ForgotPassword'> };
 
@@ -61,7 +62,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <View style={styles.topBar}>
           <IconButton icon="chevron-back" iconSize={26} accessibilityLabel="Retour" onPress={() => navigation.goBack()} />
         </View>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.container} {...dismissOnDrag}>
           <View style={styles.iconTile}>
             <Ionicons name="key-outline" size={28} color={colors.primaryDark} />
           </View>

@@ -27,7 +27,7 @@ RankingFishing est une application communautaire pour les passionnés de pêche,
 - ✨ Fonctionnalités exclusives à venir.
 
 ## 🛠 Technologies utilisées
-- **📱 Application mobile** : React Native avec Expo (SDK 54), TypeScript, Redux Toolkit
+- **📱 Application mobile** : React Native avec Expo (SDK 58), TypeScript, Redux Toolkit
 - **⚙️ Backend** : Supabase (Auth, PostgreSQL, Storage, Realtime, Edge Functions)
 - **🗄 Base de données** : PostgreSQL (Supabase), avec Row Level Security
 - **🔐 Authentification** : Supabase Auth (email et mot de passe)

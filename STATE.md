@@ -7,7 +7,7 @@
 
 ## Stack technique
 
-- **Frontend** : React Native 0.81.5 + Expo SDK 54 + TypeScript, React Navigation 7
+- **Frontend** : React Native 0.88 + Expo SDK 58 (React 19.3, TypeScript 6), React Navigation 7
 - **State** : Redux Toolkit (5 slices : auth, captures, rankings, chat, badges)
 - **Backend** : Supabase (projet `https://flhqlktregfwvomzprlo.supabase.co`)
   - Auth email/mot de passe
@@ -51,7 +51,7 @@ Le schéma complet et chaque migration sont décrits dans [`SUPABASE.md`](SUPABA
 | Profil | Paramètres (`Settings`) : préférences de notification (locales), demandes, Premium, onboarding, déconnexion, suppression du compte (RPC `delete_my_account`) | #30 |
 | Premium | Écran `Premium` et inscription à la liste d'attente (`premium_waitlist`) ; pas de paiement | #32 |
 | Design | Design system « fiche de pesée », nouveau logo et icône d'app | — |
-| Qualité | Mode mock, 115 tests jest, 10 tests Playwright | #26 |
+| Qualité | Mode mock, 115 tests jest, 12 tests Playwright | #26 |
 
 ---
 
@@ -198,4 +198,4 @@ Le code de la branche suppose que ces étapes sont faites. Sans elles, l'app en 
 | Noms de conversation vides (#29) | Policy `participants_select` récursive → helper `is_conversation_member` `SECURITY DEFINER` + RPC `get_my_conversations` |
 | Rangs instables entre deux recalculs (#34) | Comparateur total dans l'Edge Function + purge de `rankings` avant réécriture |
 | Badges jamais débloqués (#15) | `check_and_award_badges` déclenchée par triggers ; écriture client retirée de `user_badges` |
-| Jest ne parse pas React Native 0.81 | `jest.config.js` utilise le `babel-preset-expo` embarqué par `expo` |
+| Jest ne parse pas React Native (0.81+) | `jest.config.js` utilise le `babel-preset-expo` embarqué par `expo` |

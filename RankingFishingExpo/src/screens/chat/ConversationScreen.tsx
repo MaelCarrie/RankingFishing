@@ -22,6 +22,7 @@ import MessageBubble from '../../components/chat/MessageBubble';
 import CapturePickerModal from '../../components/chat/CapturePickerModal';
 import Avatar from '../../components/common/Avatar';
 import { EmptyState, ErrorState } from '../../components/ui';
+import KeyboardDoneBar, { dismissOnDrag, keyboardDoneProps } from '../../components/common/KeyboardDoneBar';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'Conversation'>;
 type Nav = CompositeNavigationProp<
@@ -314,7 +315,7 @@ export default function ConversationScreen({ route }: Props) {
         }}
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        {...dismissOnDrag}
         onScroll={handleScroll}
         scrollEventThrottle={100}
       />
@@ -361,6 +362,7 @@ export default function ConversationScreen({ route }: Props) {
           placeholder="Écris ton message…"
           placeholderTextColor={colors.textDisabled}
           multiline
+          {...keyboardDoneProps}
           maxLength={1000}
           accessibilityLabel="Message"
           testID="chat-message-input"
@@ -384,6 +386,7 @@ export default function ConversationScreen({ route }: Props) {
         onClose={() => setPickerOpen(false)}
         onSelect={handleShareCapture}
       />
+      <KeyboardDoneBar />
     </KeyboardAvoidingView>
   );
 }

@@ -120,7 +120,7 @@ export default function HomeScreen() {
               colors={[colors.primary]}
             />
           }
-          ListFooterComponent={renderFooter()}
+          ListFooterComponent={renderFooter() ?? undefined}
           ListEmptyComponent={
             feedError ? (
               <ErrorState
@@ -129,7 +129,7 @@ export default function HomeScreen() {
                 retryLabel="Recharger le fil"
                 onRetry={() => dispatch(fetchFeed())}
               />
-            ) : isLoading ? null : (
+            ) : isLoading ? undefined : (
               <EmptyState
                 icon="fish-outline"
                 title="Aucune capture pour l'instant"

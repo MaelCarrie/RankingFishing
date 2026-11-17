@@ -46,3 +46,41 @@ export function confirmAction({
     );
   });
 }
+
+/**
+ * Attend la fin de l'animation de fermeture d'un Modal avant d'en présenter un
+ * autre (sélecteur de photos, appareil photo…). Sur iOS, présenter un contrôleur
+ * pendant qu'un Modal se ferme échoue en silence : la galerie ne s'ouvre pas.
+ */
+export function afterModalClose(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Platform.OS === 'ios' ? 450 : 80));
+}
+
+export type LeaveChoice = 'save' | 'discard' | 'cancel';
+
+/**
+ * Quitter un formulaire modifié : Enregistrer / Ne pas enregistrer / Continuer.
+ * Sur web (pas d'Alert à 3 boutons), window.confirm : OK = enregistrer,
+ * Annuler = quitter sans enregistrer.
+ */
+export function askSaveBeforeLeaving({
+  title = 'Enregistrer les modifications ?',
+  message = 'Tu as des changements non enregistrés.',
+}: { title?: string; message?: string } = {}): Promise<LeaveChoice> {
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined') return Promise.resolve('discard');
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`) ? 'save' : 'discard');
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Continuer la saisie', style: 'cancel', onPress: () => resolve('cancel') },
+        { text: 'Ne pas enregistrer', style: 'destructive', onPress: () => resolve('discard') },
+        { text: 'Enregistrer', onPress: () => resolve('save') },
+      ],
+      { cancelable: true, onDismiss: () => resolve('cancel') }
+    );
+  });
+}

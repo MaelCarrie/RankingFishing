@@ -1,5 +1,6 @@
 import React, { forwardRef, useState } from 'react';
 import { View, TextInput, Text, Pressable, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, typography } from '../../theme';
 
@@ -21,7 +22,7 @@ interface InputProps extends TextInputProps {
  * (≥ 3:1), contour vert de 2 pt au focus, rouge en erreur. Hauteur 52 pt
  * (utilisable dehors, à une main).
  */
-const Input = forwardRef<TextInput, InputProps>(function Input(
+const Input = forwardRef<TextInputInstance, InputProps>(function Input(
   {
     label,
     error,

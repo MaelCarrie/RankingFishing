@@ -12,6 +12,7 @@ import { colors, spacing, typography, borderRadius, hitSlop } from '../../theme'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui';
 import UserRow from '../../components/social/UserRow';
 import { searchUsers, fetchTopUsers, UserSearchResult } from '../../api/users';
+import { dismissOnDrag } from '../../components/common/KeyboardDoneBar';
 
 type Nav = NativeStackNavigationProp<MainStackParamList>;
 const DEBOUNCE_MS = 300;
@@ -145,7 +146,7 @@ export default function UserSearchScreen() {
         <FlatList
           data={data}
           keyExtractor={(item) => item.id}
-          keyboardShouldPersistTaps="handled"
+          {...dismissOnDrag}
           renderItem={({ item, index }) => (
             <UserRow
               user={item}

@@ -14,6 +14,7 @@ import { shareCaptureExternally } from '../../utils/share';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import ActionSheet from '../common/ActionSheet';
 import Avatar from '../common/Avatar';
+import { dismissOnDrag } from '../common/KeyboardDoneBar';
 
 // Feuille de partage d'une capture (issue #31) :
 //  1. « Envoyer à un pêcheur » → choix d'une conversation ou d'un pêcheur → chat
@@ -216,7 +217,7 @@ function RecipientPicker({
           data={recipients}
           keyExtractor={(r) => r.id}
           style={styles.list}
-          keyboardShouldPersistTaps="handled"
+          {...dismissOnDrag}
           renderItem={({ item }) => (
             <Pressable
               style={({ pressed }) => [styles.recipient, pressed && styles.pressed]}

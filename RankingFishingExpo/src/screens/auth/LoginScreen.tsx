@@ -16,6 +16,7 @@ import Logo from '../../components/ui/Logo';
 import Input from '../../components/common/Input';
 import { USE_MOCK_DATA } from '../../config/supabase';
 import { MOCK_DEMO_EMAIL, MOCK_DEMO_PASSWORD } from '../../api/mock/data';
+import { dismissOnDrag } from '../../components/common/KeyboardDoneBar';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'> };
 
@@ -48,7 +49,7 @@ export default function LoginScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} {...dismissOnDrag}>
           {/* Marque */}
           <View style={styles.header}>
             <Logo size={72} />
