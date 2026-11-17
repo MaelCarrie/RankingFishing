@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
@@ -7,7 +8,8 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { resetPassword } from '../../store/slices/authSlice';
 import { validateEmail } from '../../utils/validation';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import Button from '../../components/common/Button';
+import Button from '../../components/ui/Button';
+import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/common/Input';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'ForgotPassword'> };
@@ -33,18 +35,20 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.successIcon}>📬</Text>
-          <Text style={styles.successTitle}>Email envoyé !</Text>
-          <Text style={styles.successText}>
+          <View style={styles.iconTile}>
+            <Ionicons name="mail-unread-outline" size={30} color={colors.primaryDark} />
+          </View>
+          <Text style={styles.title} accessibilityRole="header">Email envoyé</Text>
+          <Text style={[styles.subtitle, styles.centerText]}>
             Si un compte existe pour{' '}
-            <Text style={{ fontWeight: '700' }}>{email}</Text>
+            <Text style={styles.strong}>{email}</Text>
             , tu recevras un lien de réinitialisation dans quelques minutes.
           </Text>
           <Button
             title="Retour à la connexion"
             onPress={() => navigation.navigate('Login')}
-            variant="outline"
-            style={{ marginTop: spacing.xl }}
+            variant="tonal"
+            style={styles.backToLogin}
           />
         </View>
       </SafeAreaView>
@@ -54,38 +58,40 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
-        <View style={styles.container}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Retour</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.icon}>🔐</Text>
-          <Text style={styles.title}>Mot de passe oublié</Text>
+        <View style={styles.topBar}>
+          <IconButton icon="chevron-back" iconSize={26} accessibilityLabel="Retour" onPress={() => navigation.goBack()} />
+        </View>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <View style={styles.iconTile}>
+            <Ionicons name="key-outline" size={28} color={colors.primaryDark} />
+          </View>
+          <Text style={styles.title} accessibilityRole="header">Mot de passe oublié</Text>
           <Text style={styles.subtitle}>
-            Saisis ton adresse email et nous t'enverrons un lien pour réinitialiser ton mot de passe.
+            Saisis ton adresse email : nous t'enverrons un lien pour choisir un nouveau mot de passe.
           </Text>
 
-          <View style={styles.form}>
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail-outline"
-              error={emailError}
-              placeholder="vous@exemple.fr"
-            />
+          <Input
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            leftIcon="mail-outline"
+            error={emailError}
+            placeholder="ton@email.fr"
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+          />
 
-            <Button
-              title="Envoyer le lien"
-              onPress={handleSend}
-              loading={isLoading}
-              fullWidth
-              size="lg"
-            />
-          </View>
-        </View>
+          <Button
+            title="Envoyer le lien"
+            onPress={handleSend}
+            loading={isLoading}
+            fullWidth
+            style={styles.send}
+          />
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -94,23 +100,31 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   kav: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
-
-  backBtn: { marginBottom: spacing.xl },
-  backText: { ...typography.body, color: colors.primary, fontWeight: '600' },
-
-  icon: { fontSize: 56, marginBottom: spacing.lg },
-  title: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.md },
-  subtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.xl, lineHeight: 24 },
-
-  form: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
+  topBar: { paddingHorizontal: spacing.xs, minHeight: 52, justifyContent: 'center' },
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
+  centerText: { textAlign: 'center' },
 
-  successIcon: { fontSize: 72, marginBottom: spacing.lg },
-  successTitle: { ...typography.h2, color: colors.primary, marginBottom: spacing.md },
-  successText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
+  iconTile: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.sheet,
+    backgroundColor: colors.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  title: { ...typography.title1, color: colors.ink, marginBottom: spacing.sm },
+  subtitle: { ...typography.body, color: colors.inkSecondary, marginBottom: spacing.xl, maxWidth: 420 },
+  strong: { fontWeight: '600', color: colors.ink },
+  send: { marginTop: spacing.sm },
+  backToLogin: { alignSelf: 'center' },
 });

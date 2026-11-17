@@ -1,226 +1,245 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Capture } from '../../store/types';
-import { MainStackParamList } from '../../navigation/types';
-import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
-import Avatar from '../common/Avatar';
-import { formatWeight, formatSize, formatRelativeDate } from '../../utils/formatting';
-import { WEATHER_LABELS } from '../../config/constants';
+import { MainStackParamList, RootStackParamList } from '../../navigation/types';
+import { useAppSelector } from '../../store';
+import { colors, spacing, typography, borderRadius } from '../../theme';
+import Avatar from '../ui/Avatar';
+import Sheet from '../ui/Sheet';
+import SpeciesMark from '../ui/SpeciesMark';
+import WeighInStrip from '../ui/WeighInStrip';
+import LikeButton from '../ui/LikeButton';
+import { formatInt } from '../ui/format';
+import ShareCaptureSheet from './ShareCaptureSheet';
+import { formatWeight, formatRelativeDate } from '../../utils/formatting';
+import { WEATHER_META } from '../../utils/weather';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PHOTO_HEIGHT = SCREEN_WIDTH * 0.65;
+type Nav = NativeStackNavigationProp<MainStackParamList & RootStackParamList>;
 
 interface Props {
   capture: Capture;
+  /** Par défaut : utilisateur connecté (store) */
   currentUserId?: string;
   onLike?: (captureId: string) => void;
   onPress?: (capture: Capture) => void;
+  /** Par défaut : ouvre le détail avec le champ commentaire actif */
   onCommentPress?: (captureId: string) => void;
   isPremium?: boolean;
 }
 
+/**
+ * Feuille de capture du fil (« fiche de pesée ») : ligne pêcheur, photo 4:3,
+ * espèce, bande de pesée (le héros), puis actions sur une rangée de 44 pt.
+ */
 export default function CaptureCard({
   capture,
   currentUserId,
   onLike,
   onPress,
   onCommentPress,
-  isPremium = false,
+  isPremium,
 }: Props) {
-  const canSeeLocation = isPremium || capture.userId === currentUserId;
-  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const me = useAppSelector((s) => s.auth.user);
+  const myId = currentUserId ?? me?.id;
+  const premium = isPremium ?? me?.isPremium ?? false;
+  const canSeeLocation = premium || capture.userId === myId;
+  const navigation = useNavigation<Nav>();
+  const [shareOpen, setShareOpen] = useState(false);
+
   const goToProfile = () => navigation.navigate('UserProfile', { userId: capture.userId });
+  const openComments = () => {
+    if (onCommentPress) onCommentPress(capture.id);
+    else navigation.navigate('CaptureDetail', { capture, focusComment: true });
+  };
+  const weather = capture.weather ? WEATHER_META[capture.weather] : null;
+  const speciesName = capture.species?.nameFr ?? 'Espèce inconnue';
+  const summary = `${speciesName} de ${formatWeight(capture.weightGrams)} par ${capture.username}`;
+  const validated = capture.validationScore >= 90;
+  const commentLabel = `Commenter, ${capture.comments} commentaire${capture.comments > 1 ? 's' : ''}`;
 
   return (
-    <TouchableOpacity activeOpacity={0.97} onPress={() => onPress?.(capture)} disabled={!onPress}>
-    <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={goToProfile} activeOpacity={0.7} style={styles.headerLeft}>
-          <Avatar username={capture.username} uri={capture.userAvatar} size={42} />
-          <View style={styles.headerInfo}>
-            <Text style={styles.username}>{capture.username}</Text>
-            <Text style={styles.date}>{formatRelativeDate(capture.publishedAt)}</Text>
+    <>
+      <Sheet
+        padding={false}
+        style={styles.card}
+        accessibilityLabel={summary}
+        testID={`capture-card-${capture.id}`}
+      >
+        {/* Ligne pêcheur */}
+        <Pressable
+          onPress={goToProfile}
+          style={({ pressed }) => [styles.angler, pressed && styles.pressed]}
+          accessibilityRole="link"
+          accessibilityLabel={`Voir le profil de ${capture.username}`}
+        >
+          <Avatar username={capture.username} uri={capture.userAvatar} size={40} />
+          <View style={styles.anglerText}>
+            <Text style={styles.username} numberOfLines={1}>{capture.username}</Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {formatRelativeDate(capture.publishedAt)}
+              {canSeeLocation && capture.locationName ? ` · ${capture.locationName}` : ''}
+            </Text>
           </View>
-        </TouchableOpacity>
-        {capture.validationScore >= 90 && (
-          <View style={styles.validatedBadge}>
-            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-            <Text style={styles.validatedText}>Validé</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Photo */}
-      {capture.photos.length > 0 && (
-        <Image source={{ uri: capture.photos[0] }} style={styles.photo} resizeMode="cover" />
-      )}
-
-      {/* Info poisson */}
-      <View style={styles.fishInfo}>
-        <View style={styles.speciesRow}>
-          <Text style={styles.speciesIcon}>{capture.species?.icon ?? '🐟'}</Text>
-          <Text style={styles.speciesName}>{capture.species?.nameFr ?? 'Espèce inconnue'}</Text>
-          {capture.weather && (
-            <Text style={styles.weather}>{WEATHER_LABELS[capture.weather]}</Text>
+          {validated && (
+            <View style={styles.validated} accessible accessibilityLabel="Prise validée">
+              <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
+              <Text style={styles.validatedText}>Validée</Text>
+            </View>
           )}
-        </View>
+        </Pressable>
 
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Ionicons name="scale-outline" size={15} color={colors.primary} />
-            <Text style={styles.statValue}>{formatWeight(capture.weightGrams)}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons name="resize-outline" size={15} color={colors.primary} />
-            <Text style={styles.statValue}>{formatSize(capture.sizeCm)}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons name="star-outline" size={15} color={colors.secondary} />
-            <Text style={[styles.statValue, { color: colors.secondary }]}>{capture.score} pts</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Description */}
-      {capture.description && (
-        <Text style={styles.description} numberOfLines={2}>{capture.description}</Text>
-      )}
-
-      {/* Localisation */}
-      <View style={styles.locationRow}>
-        <Ionicons
-          name={canSeeLocation ? 'location-outline' : 'lock-closed-outline'}
-          size={14}
-          color={canSeeLocation ? colors.textSecondary : colors.secondary}
-        />
-        {canSeeLocation && capture.locationName ? (
-          <Text style={styles.locationText}>{capture.locationName}</Text>
-        ) : (
-          <Text style={[styles.locationText, styles.lockedText]}>
-            {canSeeLocation ? 'Localisation non renseignée' : 'Premium — Déverrouillez la localisation'}
-          </Text>
-        )}
-      </View>
-
-      {/* Actions */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.action}
-          onPress={() => onLike?.(capture.id)}
-          activeOpacity={0.7}
+        {/* Photo + pesée : ouvre le détail */}
+        <Pressable
+          onPress={() => onPress?.(capture)}
+          disabled={!onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Voir le détail : ${summary}`}
+          style={({ pressed }) => pressed && styles.bodyPressed}
         >
-          <Ionicons
-            name={capture.isLiked ? 'heart' : 'heart-outline'}
-            size={22}
-            color={capture.isLiked ? colors.error : colors.textSecondary}
+          {capture.photos.length > 0 && (
+            <View>
+              <Image
+                source={{ uri: capture.photos[0] }}
+                style={styles.photo}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+              {capture.photos.length > 1 && (
+                <View style={styles.photoCount}>
+                  <Ionicons name="images-outline" size={13} color="#FFFFFF" />
+                  <Text style={styles.photoCountText}>{capture.photos.length}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.body}>
+            <View style={styles.speciesRow}>
+              <SpeciesMark name={speciesName} speciesId={capture.species?.id} size={32} />
+              <Text style={styles.speciesName} numberOfLines={1}>{speciesName}</Text>
+              {weather && (
+                <View style={styles.weather}>
+                  <Ionicons name={weather.icon} size={15} color={colors.inkSecondary} />
+                  <Text style={styles.weatherText}>{weather.label}</Text>
+                </View>
+              )}
+            </View>
+
+            <WeighInStrip
+              weightGrams={capture.weightGrams}
+              lengthCm={capture.sizeCm}
+              score={capture.score}
+              ruled
+              style={styles.strip}
+            />
+
+            {capture.description ? (
+              <Text style={styles.description} numberOfLines={2}>{capture.description}</Text>
+            ) : null}
+
+          </View>
+        </Pressable>
+
+        {/* Actions : rangée de 44 pt, alignée à gauche */}
+        <View style={styles.actions}>
+          <LikeButton
+            liked={capture.isLiked}
+            count={capture.likes}
+            onToggle={() => onLike?.(capture.id)}
+            testID="capture-like"
           />
-          <Text style={[styles.actionText, capture.isLiked && styles.likedText]}>{capture.likes}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.action}
-          activeOpacity={0.7}
-          onPress={() => onCommentPress?.(capture.id)}
-        >
-          <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
-          <Text style={styles.actionText}>{capture.comments}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.action} activeOpacity={0.7}>
-          <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-    </View>
-    </TouchableOpacity>
+          <Pressable
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            onPress={openComments}
+            accessibilityRole="button"
+            accessibilityLabel={commentLabel}
+            testID="capture-comment"
+          >
+            <Ionicons name="chatbubble-outline" size={22} color={colors.ink} />
+            <Text style={styles.actionText}>{formatInt(capture.comments)}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            onPress={() => setShareOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Partager la prise"
+            testID="capture-share"
+          >
+            <Ionicons name="share-outline" size={22} color={colors.ink} />
+          </Pressable>
+        </View>
+      </Sheet>
+      {shareOpen && (
+        <ShareCaptureSheet capture={capture} visible={shareOpen} onClose={() => setShareOpen(false)} />
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    ...shadows.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  card: { marginHorizontal: spacing.md, marginBottom: spacing.ms },
+  pressed: { backgroundColor: colors.pressed },
+  bodyPressed: { opacity: 0.92 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  headerInfo: { flex: 1, marginLeft: spacing.sm },
-  username: { ...typography.h4, color: colors.textPrimary },
-  date: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
-  validatedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.successLight,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    gap: 3,
-  },
-  validatedText: { ...typography.caption, color: colors.success, fontWeight: '600' },
-
-  photo: { width: '100%', height: PHOTO_HEIGHT },
-
-  fishInfo: { padding: spacing.md, paddingBottom: 0 },
-  speciesRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
-  speciesIcon: { fontSize: 20, marginRight: spacing.xs },
-  speciesName: { ...typography.h4, color: colors.textPrimary, flex: 1 },
-  weather: { ...typography.caption, color: colors.textSecondary },
-
-  stats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: borderRadius.md,
-    padding: spacing.sm,
-  },
-  stat: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  statValue: { ...typography.bodySmall, color: colors.textPrimary, fontWeight: '700' },
-  statDivider: { width: 1, height: 16, backgroundColor: colors.border },
-
-  description: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    lineHeight: 20,
-  },
-
-  locationRow: {
+  angler: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingVertical: spacing.ms,
+    minHeight: 64,
+  },
+  anglerText: { flex: 1, marginLeft: spacing.ms },
+  username: { ...typography.headline, color: colors.ink },
+  meta: { ...typography.footnote, color: colors.inkSecondary, marginTop: 1 },
+  validated: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: spacing.sm },
+  validatedText: { ...typography.footnote, color: colors.primary, fontWeight: '600' },
+
+  photo: { width: '100%', aspectRatio: 4 / 3, backgroundColor: colors.surfaceMuted },
+  photoCount: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(21,34,26,0.62)',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
-  locationText: { ...typography.caption, color: colors.textSecondary },
-  lockedText: { color: colors.secondary, fontWeight: '600' },
+  photoCountText: { ...typography.footnote, color: '#FFFFFF', fontWeight: '600', fontVariant: ['tabular-nums'] },
+
+  body: { paddingHorizontal: spacing.md, paddingTop: spacing.ms },
+  speciesRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  speciesName: { ...typography.headline, color: colors.ink, flex: 1, marginLeft: spacing.sm },
+  weather: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: spacing.sm },
+  weatherText: { ...typography.footnote, color: colors.inkSecondary },
+
+  strip: { marginBottom: spacing.xs },
+
+  description: { ...typography.callout, color: colors.ink, marginTop: spacing.sm },
+
 
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: spacing.lg,
+    minHeight: 44,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
   },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actionText: { ...typography.bodySmall, color: colors.textSecondary },
-  likedText: { color: colors.error },
+  action: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 44,
+    minWidth: 44,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    borderRadius: borderRadius.control,
+  },
+  actionText: { ...typography.subhead, fontWeight: '600', color: colors.ink, fontVariant: ['tabular-nums'] },
 });

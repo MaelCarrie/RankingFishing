@@ -1,331 +1,201 @@
 # STATE.md — État actuel du projet RankingFishing
 
-> Résumé complet pour reprendre le projet dans un nouveau contexte Claude.
-> Dernière mise à jour : 2026-05-22
+> Résumé pour reprendre le projet dans un nouveau contexte.
+> Dernière mise à jour : 2026-11-17 (branche `feat/mvp-completion`, rien n'est encore committé)
 
 ---
 
 ## Stack technique
 
-- **Frontend** : React Native + Expo SDK 54 (RN 0.81.5) + TypeScript
+- **Frontend** : React Native 0.81.5 + Expo SDK 54 + TypeScript, React Navigation 7
 - **State** : Redux Toolkit (5 slices : auth, captures, rankings, chat, badges)
-- **Backend** : Supabase
-  - Auth email/password
-  - PostgreSQL (base de données)
-  - Storage (photos captures + avatars)
-  - Realtime (chat)
-  - Edge Function (recalcul classements)
-- **Project Supabase** : `https://flhqlktregfwvomzprlo.supabase.co`
+- **Backend** : Supabase (projet `https://flhqlktregfwvomzprlo.supabase.co`)
+  - Auth email/mot de passe
+  - PostgreSQL, RLS sur toutes les tables, triggers et RPC `SECURITY DEFINER`
+  - Storage (buckets publics `captures` et `avatars`)
+  - Realtime (table `messages`)
+  - Edge Function `recalculate-rankings` (Deno)
+- **Tests** : jest + jest-expo (unitaires), Playwright (E2E sur Expo web en mode mock)
+
+Le schéma complet et chaque migration sont décrits dans [`SUPABASE.md`](SUPABASE.md), section 13 pour les ajouts récents.
 
 ---
 
-## État de la base de données Supabase
+## Ce qui marche
 
-### Tables ✅
-
-
-| Table                       | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `users`                     | Profils utilisateurs (lié à `auth.users`)      |
-| `user_stats`                | Stats de pêche (captures, poids, rang...)      |
-| `user_specialties`          | Types de pêche par user                        |
-| `species`                   | Espèces de poissons — **peuplée** (15 espèces) |
-| `spots`                     | Spots de pêche (Premium)                       |
-| `captures`                  | Publications de captures                       |
-| `capture_photos`            | Photos liées aux captures                      |
-| `capture_likes`             | Likes sur les captures                         |
-| `conversations`             | Conversations chat                             |
-| `conversation_participants` | Participants aux conversations                 |
-| `messages`                  | Messages du chat                               |
-| `rankings`                  | Classements calculés par l'Edge Function       |
-| `badges`                    | Badges disponibles — **peuplés** (9 badges)    |
-| `user_badges`               | Badges débloqués par utilisateur               |
-| `follows`                   | Relations de suivi acceptées (issue #13)        |
-| `follow_requests`           | Demandes de suivi en attente (issue #13)        |
-
-
-### Données de référence ✅
-
-- **15 espèces** : carp, pike, zander, catfish, brown_trout, rainbow_trout, perch, black_bass, sea_bass, sea_bream, tench, roach, eel, salmon, asp
-- **9 badges** : badge_first_catch, badge_10_catches, badge_50_catches, badge_100_catches, badge_big_carp, badge_big_pike, badge_top100, badge_validator, badge_spring
-
-### Colonnes additionnelles sur `users` (issue #13) ✅
-
-```sql
-followers_count int default 0   -- nombre d'abonnés (denormalisé, maintenu par trigger)
-following_count int default 0   -- nombre d'abonnements
-```
-
-### Fonctions SQL ✅
-
-```sql
-increment_likes(p_capture_id uuid)      -- RPC pour liker
-decrement_likes(p_capture_id uuid)      -- RPC pour unliker
-handle_new_user()                        -- Trigger : crée public.users à l'inscription
-handle_capture_stats()                   -- Trigger : met à jour user_stats + XP après capture
-refresh_global_ranks()                   -- Recalcule global_rank de tous les users depuis captures
-handle_follow_change()                   -- Trigger SECURITY DEFINER : maintient followers/following counts
-accept_follow_request(p_requester uuid)  -- RPC SECURITY DEFINER : accepte une demande (cible = auth.uid())
-decline_follow_request(p_requester uuid) -- RPC SECURITY DEFINER : refuse une demande
-```
-
-### Triggers ✅
-
-```sql
-on_auth_user_created   -- after insert on auth.users → crée users + user_stats
-on_capture_stats       -- after insert/update/delete on captures → met à jour user_stats + XP + rangs
-follows_count_trigger  -- after insert/delete on follows → met à jour followers_count/following_count
-```
-
-**Détail de `handle_capture_stats` :**
-
-- INSERT publié → +1 `total_captures`, +poids `total_weight_grams`, màj `biggest_fish`, +XP (`max(10, score/5)`) dans `users`
-- UPDATE brouillon→publié → même chose
-- DELETE publié → -1 captures, -poids
-- Appelle `refresh_global_ranks()` à chaque opération
-
-### Realtime ✅
-
-```sql
-alter publication supabase_realtime add table public.messages;
-```
-
-### RLS (Row Level Security) ✅
-
-Activé sur toutes les tables. Policies créées pour :
-
-- `users` : select (connecté), insert/update (soi-même)
-- `user_stats` : select (connecté), insert/update (soi-même)
-- `user_specialties` : select (connecté), insert/update/delete (soi-même)
-- `captures` : select (publiées ou les siennes), insert/update/delete (soi-même)
-- `capture_photos` : select/insert (connecté)
-- `capture_likes` : select/insert/delete (soi-même)
-- `species` : select (public)
-- `badges` : select (connecté)
-- `rankings` : select (connecté), écriture réservée au service_role
-- `follows` : select (public connecté), delete (suiveur uniquement). Insert via RPC `accept_follow_request` (SECURITY DEFINER)
-- `follow_requests` : select (requester ou target), insert (auth.uid() = requester), delete (requester ou target)
-
-### Grants ✅
-
-```sql
-grant all on all tables in schema public to authenticated;
-grant all on all sequences in schema public to authenticated;
-grant all on all tables in schema public to service_role;
-grant all on all sequences in schema public to service_role;
-alter default privileges in schema public grant all on tables to authenticated;
-alter default privileges in schema public grant all on sequences to authenticated;
-```
-
-### Storage buckets ✅
-
-
-| Bucket     | Mode   | Usage              |
-| ---------- | ------ | ------------------ |
-| `captures` | Public | Photos de captures |
-| `avatars`  | Public | Photos de profil   |
-
-
-### Edge Function ✅ (déployée)
-
-`recalculate-rankings` — calcule les scores agrégés par user pour 5 périodes (day/week/month/year/alltime), upsert dans `rankings`, **et synchronise `user_stats.global_rank`** depuis le classement global alltime.
-
-Pour l'invoquer manuellement :
-
-```bash
-curl -X POST "https://flhqlktregfwvomzprlo.supabase.co/functions/v1/recalculate-rankings" \
-  -H "Authorization: Bearer <ANON_KEY>"
-```
+| Domaine | Fonctionnalité | Issues |
+| ------- | -------------- | ------ |
+| Auth | Inscription, connexion, mot de passe oublié (email/mot de passe Supabase) | — |
+| Onboarding | Écrans de présentation au premier lancement (`Welcome`), rejouables depuis les Paramètres | #25 |
+| Feed | Pagination par curseur `(published_at, id)`, 20 captures par page (8 en mock), squelettes de chargement | #18 |
+| Feed | Like, ouverture du détail, accès direct aux commentaires | #10 |
+| Captures | Publication refaite : espèce, poids, taille, météo, date et heure réelles de la prise (`caught_at`), brouillon | #3 |
+| Captures | Compression des photos avant upload (1600 px max, JPEG 0,7) | #19 |
+| Captures | Écran détail (`CaptureDetail`) : photos, bande de pesée, likes, commentaires | #10, #11 |
+| Captures | Commentaires (lire, poster, supprimer les siens), compteur maintenu par trigger | #11, #31 |
+| Captures | Partage : vers une conversation du chat ou à l'extérieur (feuille système, sinon copie du lien) | #20, #31 |
+| Classements | Onglets Global (top 100), Région (top 50), Espèce (top 50), Amis (moi + les personnes suivies) | #6, #23 |
+| Classements | Tri déterministe (score, puis plus ancienne capture, puis `user_id`) | #34 |
+| Classements | Ligne de l'utilisateur marquée (`isCurrentUser`) et épinglée en bas s'il est hors du top | #28 |
+| Classements | `user_stats.global_rank` et `regional_rank` synchronisés par l'Edge Function | #23 |
+| Badges | Déblocage automatique en SQL (`check_and_award_badges`) après chaque capture et quand le rang global change ; XP créditée une seule fois | #15 |
+| Badges | Progression « 47 / 50 » (`current_value`), feuille de déblocage après publication | #15 |
+| Chat | Conversations 1:1 avec nom et avatar de l'interlocuteur | #29 |
+| Chat | Nouveau message : recherche d'un pêcheur et suggestions (`NewConversation`) | #33 |
+| Chat | Temps réel : messages de la conversation ouverte et de la boîte de réception, non-lus, accusés de lecture | #7 |
+| Chat | Partage d'une capture dans une conversation (carte cliquable vers le détail) | #20 |
+| Social | Profil public, bouton « Message » qui ouvre ou crée la conversation | #12 |
+| Social | Follow avec demandes (accepter, refuser, suivre en retour), cloche avec compteur | #13 |
+| Social | Recherche de pêcheurs, top 10 par XP en état vide | #14 |
+| Profil | Modifier le profil (`EditProfile`) : avatar, bio, localisation, région, spécialités | #30 |
+| Profil | Paramètres (`Settings`) : préférences de notification (locales), demandes, Premium, onboarding, déconnexion, suppression du compte (RPC `delete_my_account`) | #30 |
+| Premium | Écran `Premium` et inscription à la liste d'attente (`premium_waitlist`) ; pas de paiement | #32 |
+| Design | Design system « fiche de pesée », nouveau logo et icône d'app | — |
+| Qualité | Mode mock, 115 tests jest, 10 tests Playwright | #26 |
 
 ---
 
-## État du code
+## Navigation
 
-### `src/config/supabase.ts` ✅
+```
+RootStack (AppNavigator)
+├── Welcome                 onboarding au premier lancement (issue #25)       NOUVEAU
+├── AuthStack               Login, Register, ForgotPassword
+├── MainTabs (MainNavigator)
+│   ├── Tabs
+│   │   ├── Home
+│   │   ├── Rankings
+│   │   ├── NewCapture
+│   │   ├── Chat            ChatList, Conversation { conversation }, NewConversation   (NewConversation NOUVEAU)
+│   │   └── Profile         ProfileMain, Badges, MyCaptures
+│   ├── UserProfile { userId }, UserSearch, FollowList { userId, type }, FollowRequests
+│   ├── Settings                                                               NOUVEAU
+│   ├── EditProfile                                                            NOUVEAU
+│   ├── Premium                                                                NOUVEAU
+│   └── Onboarding          rejeu depuis les Paramètres (modale plein écran)   NOUVEAU
+└── CaptureDetail { capture, focusComment? }                                   NOUVEAU
+```
 
-- Client Supabase configuré avec `AsyncStorage` pour persister la session React Native
-- `USE_MOCK_DATA = false`
-
-### `src/api/auth.ts` ✅
-
-- `signIn` / `register` / `signOut` / `resetPassword` branchés sur Supabase
-- `fetchUserProfile` : **exportée** — joint `users + user_stats + user_specialties`
-- `refreshAndStoreUser(userId)` : **exportée** — fetche le profil Supabase ET persiste dans AsyncStorage (utilisée par `refreshUser` thunk)
-- `register` utilise `upsert` (compatible avec le trigger `on_auth_user_created`)
-
-### `src/api/captures.ts` ✅
-
-- `fetchFeed` / `fetchMyCaptures` / `publishCapture` / `toggleLike` / `deleteCapture` branchés Supabase
-- `mapCapture` : fallback `species_data ?? FISH_SPECIES.find(s_id) ?? FISH_SPECIES[0]` pour les captures sans `species_data`
-
-### `src/api/storage.ts` ✅
-
-- Upload via **nouvelle API `expo-file-system/next`** (`File` + `.bytes()`)
-- Plus de dépendance à `base64-arraybuffer`
-- `uploadCapturePhoto(userId, captureId, localUri)` et `uploadAvatar(userId, localUri)`
-
-### `src/api/rankings.ts` ✅
-
-- Requête la table `rankings`, mappe `totalCaptures`
-
-### `src/api/badges.ts` ✅
-
-- Joint `badges + user_badges!left`, mappe `target_label`
-
-### `src/api/chat.ts` ✅
-
-- `fetchConversations(userId)` / `fetchMessages` / `sendMessage` branchés
-- `subscribeToMessages` via Supabase Realtime (`postgres_changes`)
-
-### `src/api/users.ts` ✅ (issue #14 — recherche)
-
-- `searchUsers(query, limit=20)` : recherche `ilike '%query%'` sur username, ordonné par XP desc
-- `fetchTopUsers(limit=10)` : top par XP pour l'état vide de la recherche
-
-### `src/api/follows.ts` ✅ (issue #13 — follow)
-
-- `fetchRelationship(myId, targetId)` : 2 requêtes batchées → `{ myStatus, theyFollowMe, incomingRequest }`
-- `getFollowStatus`, `sendFollowRequest`, `cancelFollowRequest`, `acceptFollowRequest`, `declineFollowRequest`, `unfollow`
-- `fetchFollowers(userId)`, `fetchFollowing(userId)`, `fetchPendingRequests(myId)`, `fetchPendingRequestsCount(myId)`
-
-### `src/store/slices/authSlice.ts` ✅
-
-- Thunk `refreshUser(userId)` : fetche Supabase + persiste AsyncStorage + màj Redux
-- Utilisé après publication d'une capture et au démarrage de l'app
-- Thunk `refreshPendingCount(userId)` : récupère le nb de demandes de follow pendantes
-- Reducers `setPendingRequestsCount` / `decrementPendingRequestsCount` pour màj locale
-- État `pendingRequestsCount: number` exposé dans `AuthState` (lu par la cloche header + ProfileScreen)
-
-### `src/store/slices/capturesSlice.ts` ✅
-
-- Déduplication des captures dans le feed
-
-### `src/store/slices/chatSlice.ts` ✅
-
-- `addMessage` avec déduplication pour le temps réel
-
-### `src/navigation/AppNavigator.tsx` ✅
-
-- Au démarrage : `initAuth` (lit AsyncStorage, rapide) → puis `refreshUser` + `refreshPendingCount` en arrière-plan
-
-### `src/navigation/MainNavigator.tsx` ✅
-
-- Architecture : `MainStack` (NativeStack) qui wrappe `Tabs` (BottomTabs) → permet d'ouvrir des écrans hors-tabs (UserProfile, UserSearch, FollowList, FollowRequests)
-- Header droit des onglets Home + Classements : `BellHeaderButton` (cloche avec badge rouge du nb de demandes) + `SearchHeaderButton` (loupe)
-- Routes additionnelles : `UserProfile { userId }`, `UserSearch`, `FollowList { userId, type: 'followers'|'following' }`, `FollowRequests`
-
-### `src/screens/captures/NewCaptureScreen.tsx` ✅
-
-- Après publication (non-brouillon) : dispatch `refreshUser(user.id)` pour màj immédiate des stats dans le profil
-
-### `src/components/captures/CaptureCard.tsx` ✅
-
-- Guard défensif `capture.species?.icon ?? '🐟'` (évite crash si `species_data` null en base)
-- Avatar + username dans un `TouchableOpacity` → navigation vers `UserProfile { userId }`
-
-### `src/screens/profile/UserProfileScreen.tsx` ✅ (issue #12 — profil public)
-
-- Design moderne : hero coloré, compteurs sociaux (Captures · Abonnés · Abonnements) cliquables, bouton follow à 4 états, meilleure prise, spécialités, badges débloqués en scroll horizontal, captures en grille 2 colonnes adaptative (`flexBasis: 140 + flexGrow: 1`)
-- Bouton Follow : `Suivre` / `Demande envoyée` (gris ⏱) / `Abonné(e)` (gris ✓) / `Suivre en retour` (vert, quand theyFollowMe)
-- Banner "X souhaite te suivre" avec Accepter/Refuser direct si demande entrante
-
-### `src/screens/search/UserSearchScreen.tsx` ✅ (issue #14 — recherche)
-
-- Input avec autofocus + bouton clear, debounce 300ms
-- État vide : Top 10 pêcheurs (par XP), avec chip #1 #2... à gauche
-- Filtre le user courant des résultats
-
-### `src/screens/social/FollowListScreen.tsx` ✅
-
-- Liste abonnés OU abonnements selon param `type`, basée sur `UserRow` (composant réutilisable)
-
-### `src/screens/social/FollowRequestsScreen.tsx` ✅
-
-- Liste des demandes pendantes, boutons ✓ / ✕
-- Tap ✓ → ligne reste, bouton "Suivre en retour"
-- Tap "Suivre en retour" → chip "Demande envoyée"
-- `useFocusEffect` re-check les statuts au retour : si l'autre accepte, le chip devient "Abonné(e)" (vert)
-- Merge intelligent : les lignes actionnées restent même quand le fetch fresh ne les contient plus
-
-### `src/components/social/UserRow.tsx` ✅
-
-- Composant réutilisable : avatar + username + meta (niveau · location) + slot droite
+`Welcome` n'est affiché que si le drapeau d'onboarding (AsyncStorage) est absent. `CaptureDetail` est au niveau racine : on l'ouvre depuis le feed, les profils, le chat et « Mes captures ». Les types sont dans `src/navigation/types.ts`, les en-têtes communs dans `src/navigation/headers.tsx`.
 
 ---
 
-## Ce qui fonctionne (MVP fonctionnel)
+## Fichiers clés
 
-- ✅ Authentification email/password complète
-- ✅ Feed de captures (lecture + like)
-- ✅ Publication de capture (photos, espèce, poids, taille, météo, brouillon/publié)
-- ✅ Upload de photos vers Supabase Storage
-- ✅ Stats profil mises à jour automatiquement après capture (trigger SQL)
-- ✅ XP gagné à chaque publication (trigger SQL, `max(10, score/5)`)
-- ✅ Rang global calculé automatiquement (trigger + Edge Function)
-- ✅ Profil rafraîchi au démarrage et après publication
-- ✅ Classements (table `rankings` peuplée par Edge Function)
-- ✅ Chat temps réel (Supabase Realtime)
-- ✅ Badges (affichage + progression)
-- ✅ **Profil public d'un autre pêcheur** (issue #12) — accessible depuis un avatar/username de capture
-- ✅ **Recherche d'utilisateurs** (issue #14) — loupe dans le header Home + Classements, top 10 en état vide
-- ✅ **Système de follow complet** (issue #13) — demandes pendantes, accept/decline, follow-back, compteurs auto, cloche header avec badge
+| Fichier | Rôle |
+| ------- | ---- |
+| `src/config/supabase.ts` | Client Supabase ; `USE_MOCK_DATA` vaut true si `EXPO_PUBLIC_USE_MOCK=1` |
+| `src/api/captures.ts` | Feed paginé (`fetchFeedPage`, curseur), détail, publication, like, suppression |
+| `src/api/comments.ts` | `fetchComments`, `postComment`, `deleteComment` |
+| `src/api/chat.ts` | RPC des conversations, envoi, `subscribeToMessages`, `subscribeToInbox`, `shareCaptureToConversation` |
+| `src/api/rankings.ts` | `fetchRankingBoard` : top N et ligne de l'utilisateur, onglet Amis via `follows` |
+| `src/api/badges.ts` | `fetchBadges`, `refreshMyBadges` (RPC `check_my_badges`), `fetchNewlyUnlockedBadges` |
+| `src/api/profile.ts` | `updateMyProfile`, liste d'attente Premium, `deleteMyAccount` |
+| `src/api/mock/` | Données et base en mémoire du mode mock (`data.ts`, `db.ts`, `*Extra.ts`) |
+| `src/utils/image.ts` | Compression des photos (`compressImage`) |
+| `src/utils/share.ts` | Partage externe d'une capture |
+| `src/utils/preferences.ts` | Préférences de notification et drapeau d'onboarding (AsyncStorage) |
+| `src/screens/captures/CaptureDetailScreen.tsx` | Détail d'une capture et commentaires |
+| `src/screens/chat/NewConversationScreen.tsx` | Choix du destinataire d'un nouveau message |
+| `src/screens/settings/`, `src/screens/premium/`, `src/screens/onboarding/` | Paramètres, EditProfile, Premium, onboarding |
+| `src/components/ui/` | Primitives du design system |
+| `src/theme/index.ts` | Tokens (couleurs, typographie, espacements, mouvement) |
+| `supabase/migrations/` | 5 migrations SQL à appliquer à la main |
+| `supabase/functions/recalculate-rankings/index.ts` | Edge Function des classements |
+| `scripts/recalc-rankings.sh` | Appel de l'Edge Function (`npm run recalc-rankings`) |
+
+Tous les chemins sont relatifs à `RankingFishingExpo/`.
 
 ---
 
-## Ce qui ne fonctionne pas encore / TODO
+## Mode mock et tests
 
-### Priorité haute — MVP incomplet
+### Mode mock
 
-- **Écran détail d'une capture** : vue full-screen avec photos, likes, commentaires
-- **Système de commentaires** : poster/lire des commentaires sur une capture
-- **Onglet "Amis" dans les classements** : utiliser la table `follows` pour filtrer (le système de follow est en place)
-- **Démarrer une conversation depuis un profil** : le bouton "Message" est encore désactivé sur UserProfileScreen
-- **Logique de déblocage des badges** : trigger ou Edge Function qui check les conditions après chaque capture
-- **Mise à jour `user_stats` via Edge Function** : `global_rank` est mis à jour par l'Edge Function mais `regional_rank` n'existe pas encore
+- Activé par la variable `EXPO_PUBLIC_USE_MOCK=1`, sinon l'app parle au vrai Supabase.
+- `npm run web:mock` lance Expo web sur le port **8082** en mode mock. Aucune requête réseau vers Supabase.
+- Compte démo : `demo@rankingfishing.app` / `demo1234`. Les comptes créés en mock sont gardés dans AsyncStorage.
+- Les données simulées sont dans `src/api/mock/`.
 
-### Priorité moyenne — Phase 2
+### Tests
 
-- **Google OAuth** (nécessite Google Cloud Console)
-- **Notifications push** : `expo-notifications` → nouveaux messages, badges débloqués, likes
-- **Pagination du feed** : `.range(0, 29)` + curseur
-- **Compression images** avant upload (`expo-image-manipulator`)
-- **Carte des spots** (Premium) : `expo-location` + maps
-- **Abonnement Premium** : Stripe / Apple Pay / Google Pay
-- **Classements régionaux** : actuellement tout est `type = 'global'`, `regional_rank` jamais mis à jour
-- **Partage de captures** dans le chat et sur réseaux sociaux
+| Commande | Outil | Contenu |
+| -------- | ----- | ------- |
+| `npm test` | jest + jest-expo | 115 tests dans `__tests__/` : slices Redux, utilitaires (score, formatage, validation), API mock |
+| `npm run e2e` | Playwright | 10 tests dans `e2e/` (auth, feed, navigation, recherche) sur Chromium mobile 390×844 |
 
-### Priorité basse
+`npm run e2e` démarre lui-même `npm run web:mock`, ou réutilise un serveur déjà lancé sur le port 8082.
 
-- Mode sombre
-- Animations (react-native-reanimated)
-- Onboarding (3-4 écrans pour nouveaux utilisateurs)
-- Email templates personnalisés (Supabase Auth > Email Templates)
-- Deep link pour confirmation email
-- Export données utilisateur (RGPD)
-- Tests unitaires et E2E
+---
+
+## Design system
+
+Direction « fiche de pesée » : les chiffres (poids, taille, score, rang) sont les héros, l'interface s'efface. Fond crème, feuilles blanches sans ombre, vert pour l'action, or réservé à la réussite.
+
+- Tokens : `src/theme/index.ts`
+- Primitives et règles : [`RankingFishingExpo/src/components/ui/README.md`](RankingFishingExpo/src/components/ui/README.md)
+- Contexte produit (utilisateurs, usage, positionnement) : [`RankingFishingExpo/PRODUCT.md`](RankingFishingExpo/PRODUCT.md)
+- `DESIGN.md` : à venir, il décrira le système tel qu'il est livré
+- Logo, icône d'app, splash : `RankingFishingExpo/assets/brand/`
+
+Le `ToastProvider` est monté dans `App.tsx` (le README ui le signale encore comme « à brancher »).
+
+---
+
+## Actions manuelles requises
+
+Le code de la branche suppose que ces étapes sont faites. Sans elles, l'app en mode Supabase échoue sur les commentaires, le chat, les classements et les paramètres.
+
+1. **Restaurer le projet Supabase**, actuellement en pause (erreur 521 constatée le 2026-11-17) : Dashboard Supabase > projet > Restore.
+2. **Appliquer les migrations dans l'ordre**, dans SQL Editor, depuis `RankingFishingExpo/supabase/migrations/` :
+   1. `20260601_comments`
+   2. `20260602_rankings_region_species`
+   3. `20261117_chat`
+   4. `20261117_rankings_badges`
+   5. `20261117_captures_settings`
+3. **Redéployer l'Edge Function** puis recalculer les classements :
+   ```bash
+   cd RankingFishingExpo
+   supabase functions deploy recalculate-rankings
+   npm run recalc-rankings
+   ```
+
+---
+
+## Reste à faire
+
+- **#16** Connexion OAuth (Google)
+- **#17** Notifications push (`expo-notifications`) ; les préférences sont déjà enregistrées en local
+- **#21** Carte des spots (Premium)
+- **#22** Paiement Premium (aujourd'hui, seulement une liste d'attente)
+- **#24** Mode sombre (l'app force `userInterfaceStyle: light`)
+- Création de groupes de chat (le schéma accepte `type = 'group'`, l'app ne crée que des conversations 1:1)
+- Pagination des messages d'une conversation (tout l'historique est chargé)
+- Validation communautaire des captures : la table `capture_validations` n'existe pas, donc le badge `badge_validator` reste à 0
+
+---
+
+## Issues GitHub à fermer
+
+#3, #7, #12, #13, #14, #15, #18, #19, #20, #23, #25, #26, #28, #29, #30, #31, #32, #33, #34
 
 ---
 
 ## Problèmes rencontrés et solutions appliquées
 
-
-| Problème                                | Solution                                                                                              |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Firebase nécessite CB                   | Migré vers Supabase                                                                                   |
-| `permission denied for table users`     | Grants SQL + AsyncStorage dans le client Supabase                                                     |
-| `permission denied for table captures`  | Session JWT expirée (reconnexion) + grants service_role                                               |
-| `Cannot coerce result to single JSON`   | Trigger `on_auth_user_created` manquant                                                               |
-| FK violation `captures_species_id_fkey` | Table `species` vide → seed data insérée                                                              |
-| Photos uploadées à 0 bytes              | `fetch().blob()` cassé sur Expo SDK 50+ → remplacé par `expo-file-system/next` + `File.bytes()`       |
-| `FileSystem.EncodingType` undefined     | Migration vers nouvelle API `expo-file-system/next` (File class)                                      |
-| `readAsStringAsync` déprécié            | Migration vers `expo-file-system/next`                                                                |
-| Session perdue entre requêtes           | `AsyncStorage` ajouté dans `createClient`                                                             |
-| Captures ne s'affichent plus            | `species_data` null en base → fallback dans `mapCapture` + guard dans `CaptureCard`                   |
-| Stats profil toujours à 0               | Trigger `handle_capture_stats` + `refresh_global_ranks()` + `refreshUser` thunk                       |
-| Stats ne persistent pas au redémarrage  | `refreshUser` appelait `fetchUserProfile` sans `storeUser` → `refreshAndStoreUser`                    |
-| Stats pas à jour au redémarrage         | `initAuth` lisait seulement AsyncStorage → ajout de `refreshUser` en arrière-plan dans `AppNavigator` |
-| Edge Function "permission denied"       | Grants SQL pour `service_role`                                                                        |
-| `refresh_global_ranks()` inexistante    | Fonction créée séparément dans SQL Editor                                                             |
-| Compteurs follow ne décrémentent pas    | Trigger `handle_follow_change` recréé en `SECURITY DEFINER` (RLS bloquait l'UPDATE sur users)         |
-
-
+| Problème | Solution |
+| -------- | -------- |
+| Firebase nécessite une CB | Migré vers Supabase |
+| `permission denied for table users` | Grants SQL + AsyncStorage dans le client Supabase |
+| `permission denied for table captures` | Session JWT expirée (reconnexion) + grants service_role |
+| `Cannot coerce result to single JSON` | Trigger `on_auth_user_created` manquant |
+| FK violation `captures_species_id_fkey` | Table `species` vide → seed data insérée |
+| Photos uploadées à 0 octet | `fetch().blob()` cassé sur Expo SDK 50+ → `expo-file-system/next` + `File.bytes()` |
+| Session perdue entre requêtes | `AsyncStorage` ajouté dans `createClient` |
+| Captures qui ne s'affichent plus | `species_data` null en base → fallback dans `mapCapture` |
+| Stats profil toujours à 0 | Trigger `handle_capture_stats` + `refresh_global_ranks()` + thunk `refreshUser` |
+| Compteurs follow qui ne décrémentent pas | Trigger `handle_follow_change` en `SECURITY DEFINER` |
+| Noms de conversation vides (#29) | Policy `participants_select` récursive → helper `is_conversation_member` `SECURITY DEFINER` + RPC `get_my_conversations` |
+| Rangs instables entre deux recalculs (#34) | Comparateur total dans l'Edge Function + purge de `rankings` avant réécriture |
+| Badges jamais débloqués (#15) | `check_and_award_badges` déclenchée par triggers ; écriture client retirée de `user_badges` |
+| Jest ne parse pas React Native 0.81 | `jest.config.js` utilise le `babel-preset-expo` embarqué par `expo` |

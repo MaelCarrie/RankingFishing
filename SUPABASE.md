@@ -19,6 +19,7 @@
 10. [Edge Functions — Rankings automatiques](#10-edge-functions--rankings-automatiques)
 11. [Checklist de mise en production](#11-checklist-de-mise-en-production)
 12. [Système social — Recherche et follow](#12-système-social--recherche-et-follow-issues-12--14)
+13. [Migrations versionnées (`supabase/migrations/`)](#13-migrations-versionnées-supabasemigrations)
 
 ---
 
@@ -84,6 +85,7 @@ create table public.users (
   avatar_url text,
   bio text default '',
   location text default '',         -- texte libre ex: "Bretagne, France"
+  region text,                      -- région normalisée (liste FR) pour le classement régional
   is_premium boolean default false,
   xp integer default 0,
   level integer default 1 check (level between 1 and 7),
@@ -181,6 +183,18 @@ create table public.capture_likes (
   primary key (capture_id, user_id)
 );
 
+-- Commentaires (issue #11) — voir migrations/20260601_comments.sql (table + RLS + grants + trigger)
+-- username/user_avatar dénormalisés. Trigger on_comment_change → maj captures.comments.
+create table public.comments (
+  id uuid default gen_random_uuid() primary key,
+  capture_id uuid references public.captures(id) on delete cascade not null,
+  user_id uuid references public.users(id) on delete cascade not null,
+  username text not null,
+  user_avatar text,
+  content text not null check (char_length(content) between 1 and 1000),
+  created_at timestamptz default now()
+);
+
 -- ─── Chat ────────────────────────────────────────────────────────────────────
 create table public.conversations (
   id uuid default gen_random_uuid() primary key,
@@ -248,10 +262,12 @@ create table public.rankings (
   score integer default 0,
   capture_count integer default 0,
   top_species text,
+  species text not null default '',  -- id de l'espèce pour type='species', sinon ''
+  region text,                       -- région pour type='regional', sinon null
   level integer default 1,
   rank integer not null,
   updated_at timestamptz default now(),
-  unique (type, period, user_id)
+  unique (type, period, species, user_id)
 );
 
 -- ─── Index pour les performances ─────────────────────────────────────────────
@@ -268,6 +284,12 @@ create index on public.spots(created_by);
 ## 5. Row Level Security (RLS)
 
 Le RLS est l'équivalent des règles Firestore — il contrôle qui peut lire/écrire quoi.
+
+> **Attention** : ce script est la version d'origine. Les policies des tables
+> `conversations`, `conversation_participants`, `messages`, `user_badges` et
+> `rankings` sont remplacées par les migrations `20261117_chat` et
+> `20261117_rankings_badges` ; `comments` et `premium_waitlist` ont leurs
+> policies dans leur propre migration. Voir la [section 13](#13-migrations-versionnées-supabasemigrations).
 
 Dans **SQL Editor**, exécuter :
 
@@ -794,6 +816,13 @@ Voir le fichier source — points clés :
 
 Supabase propose un système de **Realtime** basé sur les changements PostgreSQL.
 
+> **Attention** : le code ci-dessous est la première version. Le `src/api/chat.ts`
+> actuel passe par les RPC `get_my_conversations`, `get_or_create_direct_conversation`
+> et `mark_conversation_read`. Il ne met plus à jour `conversations.last_message`
+> côté client : c'est le trigger `on_message_after_insert` qui s'en charge. Il
+> s'abonne aussi à la boîte de réception (`subscribeToInbox`). Voir la
+> [section 13.3](#133-20261117_chatsql--chat-11-non-lus-partage-de-capture).
+
 ### 9.1 `src/api/chat.ts`
 
 ```typescript
@@ -961,6 +990,22 @@ useEffect(() => {
 
 Les Edge Functions Supabase s'exécutent côté serveur (Deno). Elles remplacent les Cloud Functions Firebase.
 
+> **Version actuelle** : `RankingFishingExpo/supabase/functions/recalculate-rankings/index.ts`.
+> Elle diffère de l'exemple ci-dessous :
+> - elle calcule trois types de classement (`global`, `regional` par `users.region`,
+>   `species` par `species_id`) pour les cinq périodes ;
+> - le tri est déterministe (issue #34) : score décroissant, puis plus ancienne
+>   capture de la fenêtre, puis `user_id` croissant ;
+> - les lectures sont paginées par 1000 lignes, la table `rankings` est purgée puis
+>   réécrite par lots de 500 (`onConflict: 'type,period,species,user_id'`) ;
+> - `user_stats.global_rank` et `user_stats.regional_rank` (alltime) sont
+>   synchronisés, en n'écrivant que les lignes qui changent : le trigger
+>   `on_user_stats_rank_badges` (badge Top 100) ne se déclenche donc qu'à bon escient.
+>
+> Elle dépend des migrations `20260602_rankings_region_species` et
+> `20261117_rankings_badges`. Après déploiement, on la lance avec
+> `npm run recalc-rankings` (script `scripts/recalc-rankings.sh`).
+
 ### 10.1 Installer Supabase CLI
 
 ```bash
@@ -1056,8 +1101,12 @@ supabase functions deploy recalculate-rankings
 ### Performance
 - [ ] Index SQL créés (déjà dans le script section 4)
 - [ ] Fonctions SQL `increment_likes`/`decrement_likes` créées
-- [ ] Pagination sur le feed (`.range(0, 29)` + curseur)
-- [ ] Compression des images avant upload (`expo-image-manipulator`)
+- [x] Pagination sur le feed par curseur `(published_at, id)` (issue #18, index `captures_feed_cursor_idx`)
+- [x] Compression des images avant upload (`expo-image-manipulator`, 1600 px, JPEG 0,7 — issue #19)
+
+### Migrations
+- [ ] Les 5 fichiers de `RankingFishingExpo/supabase/migrations/` appliqués dans l'ordre (section 13)
+- [ ] Edge Function `recalculate-rankings` redéployée, puis `npm run recalc-rankings`
 
 ---
 create or replace function increment_likes(p_capture_id uuid)
@@ -1210,6 +1259,271 @@ update users u set
 
 ---
 
+## 13. Migrations versionnées (`supabase/migrations/`)
+
+Depuis l'issue #11, chaque évolution du schéma est un fichier SQL dans `RankingFishingExpo/supabase/migrations/`. On l'exécute à la main dans **Supabase > SQL Editor**. Toutes les migrations sont idempotentes (`if not exists`, `create or replace`, `drop policy if exists`, `drop constraint if exists`) et peuvent être rejouées sans casse.
+
+### 13.0 Ordre d'application
+
+| # | Fichier | Issues | Dépend de |
+| - | ------- | ------ | --------- |
+| 1 | `20260601_comments.sql` | #11 | sections 4 et 5 |
+| 2 | `20260602_rankings_region_species.sql` | #6 | sections 4 et 5 |
+| 3 | `20261117_chat.sql` | #7, #20, #29, #33 | sections 4, 5 et 9 |
+| 4 | `20261117_rankings_badges.sql` | #15, #23, #28, #34 | migration 2, section 12 (`follows`) |
+| 5 | `20261117_captures_settings.sql` | #3, #18, #30, #32 | migration 1 (`comments`), section 12 |
+
+Après les migrations 2 et 4 : redéployer l'Edge Function (`supabase functions deploy recalculate-rankings`) puis lancer `npm run recalc-rankings`.
+
+### 13.1 `20260601_comments.sql` — commentaires (issue #11)
+
+**Table**
+
+```sql
+comments (
+  id uuid pk default gen_random_uuid(),
+  capture_id uuid not null → captures(id) on delete cascade,
+  user_id uuid not null → users(id) on delete cascade,
+  username text not null,          -- dénormalisé (snapshot), comme captures
+  user_avatar text,
+  content text not null check (char_length(content) between 1 and 1000),
+  created_at timestamptz default now()
+)
+-- index comments_capture_idx (capture_id, created_at)
+```
+
+**Fonction et trigger**
+
+```sql
+handle_comment_count()   -- SECURITY DEFINER : +1 / -1 (plancher 0) sur captures.comments
+on_comment_change        -- after insert or delete on comments → handle_comment_count()
+```
+
+**RLS et grants**
+
+| Policy | Opération | Règle |
+| ------ | --------- | ----- |
+| `comments_select` | select | `auth.uid() is not null` |
+| `comments_insert` | insert | `auth.uid() = user_id` |
+| `comments_delete` | delete | `auth.uid() = user_id` |
+
+`grant select, insert, delete` à `authenticated`, `all` à `service_role`.
+
+### 13.2 `20260602_rankings_region_species.sql` — classements régionaux et par espèce (issue #6)
+
+**Colonnes**
+
+```sql
+users.region     text                      -- région normalisée (liste FR) ; users.location reste le texte libre affiché
+rankings.species text not null default ''  -- id d'espèce pour type='species', '' sinon
+rankings.region  text                      -- région pour type='regional', null sinon
+```
+
+**Contrainte d'unicité** : `rankings_type_period_user_id_key` est supprimée et remplacée par `rankings_type_period_species_user_id_key unique (type, period, species, user_id)`. Un pêcheur peut ainsi figurer dans plusieurs classements d'espèce sur la même période.
+
+**Index**
+
+```sql
+rankings_regional_idx  (type, period, region, rank asc)
+rankings_species_idx   (type, period, species, rank asc)
+```
+
+Valeurs de `rankings.type` écrites par l'Edge Function : `global`, `regional`, `species`. L'onglet « Amis » (`friends`) n'a pas de lignes propres : l'app filtre le classement global avec la table `follows`.
+
+### 13.3 `20261117_chat.sql` — chat 1:1, non-lus, partage de capture
+
+Issues #7 (temps réel), #29 (noms de conversation vides), #33 (nouveau message), #20 (partage de capture), bouton « Message » du profil public.
+
+**Colonnes et index**
+
+```sql
+conversation_participants.last_read_at timestamptz default now()   -- base du calcul des non-lus
+-- index conversation_participants_user_idx (user_id)
+-- index messages_conversation_sent_idx (conversation_id, sent_at)
+```
+
+**Fonctions et RPC** (toutes `SECURITY DEFINER`, `search_path = public`)
+
+```sql
+is_conversation_member(p_conversation_id uuid) → boolean
+  -- helper des policies : casse la récursion de l'ancienne participants_select
+  -- (« infinite recursion detected in policy », cause des noms vides #29)
+get_my_conversations(p_conversation_id uuid default null) → table
+  -- RPC : mes conversations avec participants (id, username, avatar_url) en jsonb
+  -- et unread_count calculé depuis last_read_at. Sans filtre, masque les
+  -- conversations privées encore vides.
+get_or_create_direct_conversation(p_other uuid) → uuid
+  -- RPC : ouvre ou crée la conversation privée avec p_other.
+  -- Verrou pg_advisory_xact_lock sur la paire : pas de doublon si les deux lancent en même temps.
+mark_conversation_read(p_conversation_id uuid) → void
+  -- RPC : last_read_at = now(), unread_count = 0, is_read = true sur les messages reçus
+handle_message_before_insert()   -- fonction du trigger on_message_before_insert
+handle_message_after_insert()    -- fonction du trigger on_message_after_insert
+```
+
+**Triggers**
+
+```sql
+on_message_before_insert  -- before insert on messages
+  -- recopie sender_name / sender_avatar depuis users (pas d'usurpation de pseudo),
+  -- force sent_at = now() et is_read = false ;
+  -- type 'capture' : vérifie que la capture est publiée et reconstruit capture_ref
+  -- (captureId, species, speciesIcon, weightGrams, sizeCm, score, photoUrl, ownerId, ownerUsername)
+on_message_after_insert   -- after insert on messages
+  -- met à jour conversations.last_message (jsonb camelCase) + updated_at,
+  -- remet à zéro les non-lus de l'expéditeur, incrémente unread_count des autres
+```
+
+**RLS** (remplace les policies chat de la section 5)
+
+| Table | Policy | Règle |
+| ----- | ------ | ----- |
+| `conversations` | `conversations_select` | `is_conversation_member(id)` |
+| `conversations` | `conversations_insert`, `conversations_update` | **supprimées** : création et mise à jour via RPC et triggers |
+| `conversation_participants` | `participants_select` | `is_conversation_member(conversation_id)` |
+| `conversation_participants` | `participants_insert` | **supprimée** : ajout via `get_or_create_direct_conversation` |
+| `messages` | `messages_select` | `is_conversation_member(conversation_id)` |
+| `messages` | `messages_insert` | `auth.uid() = sender_id` et membre de la conversation |
+
+Pas de policy update ou delete sur `messages` : `is_read` passe par `mark_conversation_read`.
+
+**Grants** : `select, insert` sur `messages`, `select` sur `conversations` et `conversation_participants` pour `authenticated` ; `all` pour `service_role`. `execute` sur les quatre fonctions publiques révoqué pour `public` et `anon`, accordé à `authenticated`.
+
+**Realtime** : `messages` est ajoutée à la publication `supabase_realtime` si elle n'y est pas déjà (INSERT = nouveaux messages, UPDATE = accusés de lecture).
+
+**Rattrapage** : `last_read_at = now()` pour les participants existants (les anciens messages ne sont pas comptés comme non lus).
+
+### 13.4 `20261117_rankings_badges.sql` — RLS des classements et badges automatiques
+
+Issues #15 (badges), #23 (régional), #28 / #34 (classements). À appliquer **après** `20260602_rankings_region_species.sql`.
+
+**Colonnes et index**
+
+```sql
+badges.target_species     text → species(id)   -- espèce des badges 'species_weight'
+                                               -- (badge_big_carp = 'carp', badge_big_pike = 'pike')
+user_badges.current_value integer              -- valeur brute de la métrique (affiche « 47 / 50 »)
+-- index partiel user_badges_unlocked_idx (user_id, unlocked_at desc) where is_unlocked
+```
+
+**Fonctions et RPC**
+
+```sql
+rf_level_from_xp(p_xp integer) → integer   -- immutable, mêmes paliers que LEVEL_THRESHOLDS (200/500/1000/2000/4000/8000)
+rf_level_name(p_level integer) → text      -- immutable, Novice … Légende
+check_and_award_badges(p_user uuid) → setof text
+  -- SECURITY DEFINER, idempotente, verrou consultatif par utilisateur.
+  -- Recalcule tous les badges depuis badges.target_metric / target_value / target_species :
+  --   total_captures, species_weight, global_rank (<= cible), seasonal_captures
+  --   (mars-mai, heure de Paris, max sur une année), validations
+  --   (table capture_validations si elle existe, sinon 0).
+  -- Débloque, crédite xp_reward une seule fois, met à jour level / level_name
+  -- (le niveau ne redescend jamais). Retourne les ids débloqués par l'appel.
+  -- execute réservé à service_role.
+check_my_badges() → setof text
+  -- RPC appelée par l'app (écran Badges) : check_and_award_badges(auth.uid())
+handle_capture_badges()   -- fonction du trigger on_capture_zz_badges
+handle_rank_badges()      -- fonction du trigger on_user_stats_rank_badges
+```
+
+**Triggers**
+
+```sql
+on_capture_zz_badges       -- after insert, delete ou update of is_draft, weight_grams, species_id,
+                           -- published_at, user_id on captures. Préfixe « zz » : s'exécute après
+                           -- on_capture_stats, donc avec un global_rank à jour.
+on_user_stats_rank_badges  -- after update of global_rank on user_stats,
+                           -- quand le rang change et devient <= 100 (badge Top 100)
+```
+
+**RLS** (remplace les policies `user_badges`, `badges` et `rankings` de la section 5)
+
+| Table | Policy | Règle |
+| ----- | ------ | ----- |
+| `user_badges` | `user_badges_select` | tout connecté (`using (true)`) : badges visibles sur les profils publics |
+| `user_badges` | `user_badges_insert`, `user_badges_update` | **supprimées** : seule la fonction attribue les badges (anti-triche) |
+| `badges` | `badges_select` | tout connecté |
+| `rankings` | `rankings_select` | tout connecté ; écriture réservée au `service_role` (Edge Function) |
+
+**Grants** : `select` sur `user_badges`, `badges`, `rankings`, `follows` (onglet « Amis ») pour `authenticated` ; `all` sur `rankings` pour `service_role`. `check_my_badges()` exécutable par `authenticated` ; les fonctions internes ne le sont pas.
+
+**Rattrapage** : `check_and_award_badges` est lancée pour tous les utilisateurs existants.
+
+### 13.5 `20261117_captures_settings.sql` — captures, paramètres du compte et Premium
+
+Issues #3 (date de la prise), #18 (feed paginé), #30 (suppression du compte), #32 (liste d'attente Premium).
+
+**Colonnes, contrainte et index**
+
+```sql
+captures.caught_at timestamptz default now()   -- moment de la prise (published_at = moment de la publication)
+                                               -- rempli avec published_at pour les captures existantes
+-- contrainte captures_caught_at_not_future :
+--   check (caught_at is null or caught_at <= now() + interval '5 minutes') not valid
+-- index partiel captures_feed_cursor_idx (published_at desc, id desc) where is_draft = false
+```
+
+**Table**
+
+```sql
+premium_waitlist (
+  user_id uuid pk → users(id) on delete cascade,
+  email text not null,
+  created_at timestamptz not null default now()
+)
+```
+
+**RPC**
+
+```sql
+delete_my_account() → void
+  -- SECURITY DEFINER (search_path = public, auth), agit uniquement sur auth.uid().
+  -- Supprime dans l'ordre : likes donnés (décrément des compteurs), commentaires,
+  -- follows et demandes, messages, participations, conversations vides, captures,
+  -- rankings, user_badges, user_specialties, premium_waitlist ; spots.created_by = null ;
+  -- puis user_stats, users et auth.users.
+  -- Les fichiers Storage (avatar, photos) sont supprimés par l'app avant l'appel.
+  -- execute révoqué pour public et anon, accordé à authenticated.
+```
+
+**RLS et grants**
+
+| Policy | Opération | Règle |
+| ------ | --------- | ----- |
+| `premium_waitlist_select_own` | select | `auth.uid() = user_id` |
+| `premium_waitlist_insert_own` | insert | `auth.uid() = user_id` |
+| `premium_waitlist_update_own` | update | `auth.uid() = user_id` |
+| `premium_waitlist_delete_own` | delete | `auth.uid() = user_id` |
+
+`grant select, insert, update, delete` à `authenticated`, `all` à `service_role`.
+
+### 13.6 Récapitulatif par élément
+
+| Élément | Type | Migration |
+| ------- | ---- | --------- |
+| `comments` | table | `20260601_comments` |
+| `handle_comment_count` / `on_comment_change` | fonction / trigger | `20260601_comments` |
+| `users.region` | colonne | `20260602_rankings_region_species` |
+| `rankings.species`, `rankings.region` | colonnes | `20260602_rankings_region_species` |
+| `rankings_type_period_species_user_id_key` | contrainte unique | `20260602_rankings_region_species` |
+| `rankings_regional_idx`, `rankings_species_idx` | index | `20260602_rankings_region_species` |
+| `conversation_participants.last_read_at` | colonne | `20261117_chat` |
+| `is_conversation_member` | fonction | `20261117_chat` |
+| `get_my_conversations`, `get_or_create_direct_conversation`, `mark_conversation_read` | RPC | `20261117_chat` |
+| `on_message_before_insert`, `on_message_after_insert` | triggers | `20261117_chat` |
+| `messages` dans `supabase_realtime` | Realtime | `20261117_chat` |
+| `badges.target_species`, `user_badges.current_value` | colonnes | `20261117_rankings_badges` |
+| `rf_level_from_xp`, `rf_level_name` | fonctions | `20261117_rankings_badges` |
+| `check_and_award_badges` | fonction interne | `20261117_rankings_badges` |
+| `check_my_badges` | RPC | `20261117_rankings_badges` |
+| `on_capture_zz_badges`, `on_user_stats_rank_badges` | triggers | `20261117_rankings_badges` |
+| `captures.caught_at` + `captures_caught_at_not_future` | colonne + contrainte | `20261117_captures_settings` |
+| `captures_feed_cursor_idx` | index | `20261117_captures_settings` |
+| `premium_waitlist` | table | `20261117_captures_settings` |
+| `delete_my_account` | RPC | `20261117_captures_settings` |
+
+---
+
 ## Ordre recommandé d'implémentation
 
 ```
@@ -1224,10 +1538,11 @@ update users u set
 Étape 9  →  Implémenter rankings.ts + badges.ts (sections 8.2 + 8.4)     ~45 min
 Étape 10 →  Edge Function rankings automatiques (section 10) — optionnel ~1h
 Étape 11 →  Système social — follow + recherche (section 12)             ~30 min
+Étape 12 →  Migrations versionnées + redéploiement Edge Function (13)    ~20 min
 ```
 
 **Temps total estimé : 1 journée de travail pour un MVP Supabase complet.**
 
 ---
 
-*Dernière mise à jour : 2026-05-22*
+*Dernière mise à jour : 2026-11-17*

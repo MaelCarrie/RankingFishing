@@ -1,20 +1,25 @@
+// Décimale à la française : 26.4 → « 26,4 »
+function frDecimal(n: number, digits = 1): string {
+  return n.toFixed(digits).replace('.', ',');
+}
+
 // Formate le poids (grammes → affichage)
 export function formatWeight(grams: number): string {
   if (grams >= 1000) {
     const kg = grams / 1000;
-    return kg % 1 === 0 ? `${kg} kg` : `${kg.toFixed(1)} kg`;
+    return kg % 1 === 0 ? `${kg} kg` : `${frDecimal(kg)} kg`;
   }
   return `${grams} g`;
 }
 
 // Formate la taille en cm
 export function formatSize(cm: number): string {
-  return `${cm} cm`;
+  return `${String(cm).replace('.', ',')} cm`;
 }
 
 // Formate un score de classement
 export function formatScore(score: number): string {
-  if (score >= 1000) return `${(score / 1000).toFixed(1)}k pts`;
+  if (score >= 1000) return `${frDecimal(score / 1000)}k pts`;
   return `${score} pts`;
 }
 
@@ -55,7 +60,7 @@ export function formatRank(rank: number): string {
 
 // Formate un XP
 export function formatXP(xp: number): string {
-  if (xp >= 1000) return `${(xp / 1000).toFixed(1)}k XP`;
+  if (xp >= 1000) return `${frDecimal(xp / 1000)}k XP`;
   return `${xp} XP`;
 }
 

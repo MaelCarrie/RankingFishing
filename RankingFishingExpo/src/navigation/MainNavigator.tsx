@@ -1,11 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList, ChatStackParamList, ProfileStackParamList, MainStackParamList } from './types';
-import { colors, typography } from '../theme';
+import { colors } from '../theme';
+import IconButton from '../components/ui/IconButton';
+import { RootHeader, detailScreenOptions } from './headers';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import RankingsScreen from '../screens/rankings/RankingsScreen';
@@ -19,6 +23,10 @@ import UserProfileScreen from '../screens/profile/UserProfileScreen';
 import UserSearchScreen from '../screens/search/UserSearchScreen';
 import FollowListScreen from '../screens/social/FollowListScreen';
 import FollowRequestsScreen from '../screens/social/FollowRequestsScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
+import EditProfileScreen from '../screens/settings/EditProfileScreen';
+import PremiumScreen from '../screens/premium/PremiumScreen';
+import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
@@ -27,17 +35,29 @@ const MainStack = createNativeStackNavigator<MainStackParamList>();
 
 function ChatNavigator() {
   return (
-    <ChatStack.Navigator>
-      <ChatStack.Screen name="ChatList" component={ChatScreen} options={{ title: 'Messages' }} />
+    <ChatStack.Navigator screenOptions={{ ...detailScreenOptions, headerBackTitle: 'Retour' }}>
+      <ChatStack.Screen
+        name="ChatList"
+        component={ChatScreen}
+        options={{ title: 'Messages', header: () => <RootHeader title="Messages" /> }}
+      />
       <ChatStack.Screen
         name="Conversation"
         component={ConversationScreen}
+        // Une route par conversation : naviguer vers une autre conversation empile un nouvel écran
+        getId={({ params }) => params.conversation.id}
         options={({ route }) => ({
-          title: route.params.conversation.type === 'group'
-            ? route.params.conversation.name ?? 'Groupe'
-            : route.params.conversation.participantNames.find((n) => n !== 'PierreM') ?? 'Conversation',
-          headerTintColor: colors.primary,
+          // Titre provisoire ; ConversationScreen le met à jour depuis le store
+          title: route.params.conversation.displayName
+            ?? (route.params.conversation.type === 'group'
+              ? route.params.conversation.name ?? 'Groupe'
+              : route.params.conversation.otherParticipant?.username ?? 'Conversation'),
         })}
+      />
+      <ChatStack.Screen
+        name="NewConversation"
+        getComponent={() => require('../screens/chat/NewConversationScreen').default}
+        options={{ title: 'Nouveau message' }}
       />
     </ChatStack.Navigator>
   );
@@ -45,80 +65,99 @@ function ChatNavigator() {
 
 function ProfileNavigator() {
   return (
-    <ProfileStack.Navigator>
-      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ title: 'Mon profil' }} />
-      <ProfileStack.Screen name="Badges" component={BadgesScreen} options={{ title: 'Mes badges', headerTintColor: colors.primary }} />
-      <ProfileStack.Screen name="MyCaptures" component={CapturesScreen} options={{ title: 'Mes captures', headerTintColor: colors.primary }} />
+    <ProfileStack.Navigator screenOptions={detailScreenOptions}>
+      <ProfileStack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ title: 'Mon profil', header: () => <RootHeader title="Mon profil" /> }}
+      />
+      <ProfileStack.Screen name="Badges" component={BadgesScreen} options={{ title: 'Mes badges' }} />
+      <ProfileStack.Screen name="MyCaptures" component={CapturesScreen} options={{ title: 'Mes captures' }} />
     </ProfileStack.Navigator>
   );
 }
 
-// Bouton central "+" pour nouvelle capture
-function AddButton({ onPress }: { onPress: () => void }) {
+/** Onglet central « + » : carré arrondi vert de 52 pt, intégré à la barre (pas flottant). */
+function AddTabButton({ onPress, selected }: { onPress: () => void; selected: boolean }) {
   return (
-    <TouchableOpacity style={styles.addButton} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name="add" size={28} color="#FFFFFF" />
-    </TouchableOpacity>
-  );
-}
-
-// Bouton loupe (header) → ouvre l'écran de recherche dans le MainStack parent
-function SearchHeaderButton({ onPress }: { onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerIconBtn}>
-      <Ionicons name="search-outline" size={22} color={colors.primary} />
-    </TouchableOpacity>
-  );
-}
-
-// Cloche (header) avec pastille rouge si demandes pendantes → ouvre FollowRequests
-function BellHeaderButton({ onPress }: { onPress: () => void }) {
-  const count = useAppSelector((s) => s.auth.pendingRequestsCount);
-  return (
-    <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerIconBtn}>
-      <Ionicons name="notifications-outline" size={22} color={colors.primary} />
-      {count > 0 && (
-        <View style={styles.bellBadge}>
-          <Text style={styles.bellBadgeText}>{count > 9 ? '9+' : count}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// Groupe cloche + loupe pour le header droit
-function HeaderRightActions({ navigation }: { navigation: any }) {
-  const goSearch = () => navigation.getParent()?.navigate('UserSearch');
-  const goRequests = () => navigation.getParent()?.navigate('FollowRequests');
-  return (
-    <View style={styles.headerRightGroup}>
-      <BellHeaderButton onPress={goRequests} />
-      <SearchHeaderButton onPress={goSearch} />
+    <View style={styles.addSlot}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="Publier une prise"
+        accessibilityState={{ selected }}
+        style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+        testID="tab-new-capture"
+      >
+        <Ionicons name="add" size={30} color={colors.textOnPrimary} />
+      </Pressable>
     </View>
   );
 }
 
+/** Actions des en-têtes racines : recherche + demandes d'abonnement (avec compteur). */
+function RootHeaderActions({ navigation }: { navigation: any }) {
+  const count = useAppSelector((s) => s.auth.pendingRequestsCount);
+  const goSearch = () => navigation.getParent()?.navigate('UserSearch');
+  const goRequests = () => navigation.getParent()?.navigate('FollowRequests');
+  return (
+    <>
+      <IconButton icon="search-outline" accessibilityLabel="Rechercher un pêcheur" onPress={goSearch} />
+      <IconButton
+        icon="notifications-outline"
+        accessibilityLabel="Demandes d'abonnement"
+        badgeCount={count}
+        onPress={goRequests}
+      />
+    </>
+  );
+}
+
+const TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+  Home: ['home', 'home-outline'],
+  Rankings: ['trophy', 'trophy-outline'],
+  Chat: ['chatbubbles', 'chatbubbles-outline'],
+  Profile: ['person', 'person-outline'],
+};
+
+/** Hauteur utile de la barre d'onglets (hors zone sûre) : loge le « + » de 52 pt. */
+const TAB_BAR_CONTENT = 56;
+const TAB_BAR_PAD = 6;
+
+/**
+ * Écrans poussés dans les piles des onglets : la barre d'onglets s'efface,
+ * comme sur les écrans de la pile principale (détail, profil public, Paramètres…).
+ * Le champ de saisie de Conversation repose ainsi sur la zone sûre.
+ */
+const ROUTES_WITHOUT_TAB_BAR = new Set(['Conversation', 'NewConversation', 'Badges', 'MyCaptures']);
+
 function TabsNavigator() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerShown: route.name === 'Home' || route.name === 'Rankings',
-        headerStyle: { backgroundColor: colors.surface },
-        headerTitleStyle: { ...typography.h4, color: colors.textPrimary },
+        // Route focalisée dans la pile imbriquée (Chat, Profil), lue aussi dans les params
+        // avant le premier rendu de la pile (ex. popTo vers Chat → Conversation).
+        tabBarStyle: ROUTES_WITHOUT_TAB_BAR.has(getFocusedRouteNameFromRoute(route) ?? '')
+          ? { display: 'none' }
+          : [
+            styles.tabBar,
+            {
+              height: TAB_BAR_CONTENT + TAB_BAR_PAD * 2 + insets.bottom,
+              paddingBottom: TAB_BAR_PAD + insets.bottom,
+            },
+          ],
+        headerShown: route.name === 'Home' || route.name === 'Rankings' || route.name === 'NewCapture',
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: styles.tabBar,
+        tabBarInactiveTintColor: colors.inkSecondary,
+        tabBarHideOnKeyboard: true,
+        tabBarItemStyle: styles.tabBarItem,
         tabBarLabelStyle: styles.tabBarLabel,
+        tabBarAllowFontScaling: false,
+        sceneStyle: { backgroundColor: colors.background },
         tabBarIcon: ({ color, focused }) => {
-          const icons: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
-            Home: ['home', 'home-outline'],
-            Rankings: ['trophy', 'trophy-outline'],
-            NewCapture: ['add-circle', 'add-circle-outline'],
-            Chat: ['chatbubbles', 'chatbubbles-outline'],
-            Profile: ['person', 'person-outline'],
-          };
-          const [activeIcon, inactiveIcon] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
-          return <Ionicons name={focused ? activeIcon : inactiveIcon} size={22} color={color} />;
+          const [activeIcon, inactiveIcon] = TAB_ICONS[route.name] ?? ['ellipse', 'ellipse-outline'];
+          return <Ionicons name={focused ? activeIcon : inactiveIcon} size={24} color={color} />;
         },
       })}
     >
@@ -127,28 +166,29 @@ function TabsNavigator() {
         component={HomeScreen}
         options={({ navigation }) => ({
           title: 'Accueil',
-          headerTitle: '🎣 RankingFishing',
-          headerRight: () => <HeaderRightActions navigation={navigation} />,
+          header: () => <RootHeader title="Accueil" actions={<RootHeaderActions navigation={navigation} />} />,
         })}
       />
       <Tab.Screen
         name="Rankings"
         component={RankingsScreen}
         options={({ navigation }) => ({
-          title: 'Classements',
-          headerRight: () => <HeaderRightActions navigation={navigation} />,
+          // Libellé d'onglet court pour ne pas être tronqué ; grand titre au pluriel
+          title: 'Classement',
+          header: () => <RootHeader title="Classements" actions={<RootHeaderActions navigation={navigation} />} />,
         })}
       />
       <Tab.Screen
         name="NewCapture"
         component={NewCaptureScreen}
         options={({ navigation }) => ({
-          title: 'Capturer',
-          headerShown: true,
-          headerTitle: 'Nouvelle capture',
-          headerTintColor: colors.primary,
-          tabBarButton: (props) => (
-            <AddButton onPress={() => navigation.navigate('NewCapture')} />
+          title: 'Publier',
+          header: () => <RootHeader title="Nouvelle capture" />,
+          tabBarButton: () => (
+            <AddTabButton
+              onPress={() => navigation.navigate('NewCapture')}
+              selected={navigation.isFocused()}
+            />
           ),
         })}
       />
@@ -160,7 +200,7 @@ function TabsNavigator() {
 
 export default function MainNavigator() {
   return (
-    <MainStack.Navigator screenOptions={{ headerTintColor: colors.primary }}>
+    <MainStack.Navigator screenOptions={detailScreenOptions}>
       <MainStack.Screen name="Tabs" component={TabsNavigator} options={{ headerShown: false }} />
       <MainStack.Screen
         name="UserProfile"
@@ -182,6 +222,27 @@ export default function MainNavigator() {
         component={FollowRequestsScreen}
         options={{ title: 'Demandes', headerBackTitle: 'Retour' }}
       />
+      {/* ─── Captures, profil & paramètres ─── */}
+      <MainStack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Paramètres', headerBackTitle: 'Retour' }}
+      />
+      <MainStack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{ title: 'Modifier le profil', headerBackTitle: 'Retour' }}
+      />
+      <MainStack.Screen
+        name="Premium"
+        component={PremiumScreen}
+        options={{ title: 'Premium', headerBackTitle: 'Retour' }}
+      />
+      <MainStack.Screen
+        name="Onboarding"
+        component={OnboardingScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
+      />
     </MainStack.Navigator>
   );
 }
@@ -189,56 +250,31 @@ export default function MainNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: colors.surface,
-    borderTopColor: colors.border,
+    borderTopColor: colors.hairline,
     borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 6,
-    paddingTop: 4,
+    paddingTop: TAB_BAR_PAD,
+    elevation: 0,
+    shadowOpacity: 0,
   },
+  tabBarItem: { paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
   tabBarLabel: {
-    ...typography.caption,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '600',
+    marginTop: 3,
+    // Web : même pile système que le reste de l'app (le thème de navigation impose system-ui)
+    ...(Platform.OS === 'web'
+      ? { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }
+      : null),
   },
+  addSlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   addButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 6,
   },
-  headerIconBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    position: 'relative',
-  },
-  headerRightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  bellBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 4,
-    backgroundColor: colors.error,
-    borderRadius: 9,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.surface,
-  },
-  bellBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
+  addButtonPressed: { backgroundColor: colors.primaryDark, transform: [{ scale: 0.96 }] },
 });

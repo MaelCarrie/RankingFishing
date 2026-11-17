@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '../../theme';
-import Avatar from '../common/Avatar';
+import { Avatar } from '../ui';
 import { UserSearchResult } from '../../api/users';
 
 interface Props {
@@ -10,29 +10,35 @@ interface Props {
   onPress?: (userId: string) => void;
   rightSlot?: React.ReactNode;
   showChevron?: boolean;
+  /** Élément avant l'avatar (rang dans une liste « top »). */
+  leading?: React.ReactNode;
 }
 
-export default function UserRow({ user, onPress, rightSlot, showChevron = false }: Props) {
+export const USER_ROW_AVATAR = 44;
+
+/** Ligne pêcheur : avatar, pseudo, niveau et lieu, action à droite. 64 pt de haut. */
+export default function UserRow({ user, onPress, rightSlot, showChevron = false, leading }: Props) {
+  const meta = [`Niveau ${user.level} · ${user.levelName}`, user.location].filter(Boolean).join(' · ');
   return (
-    <TouchableOpacity
-      style={styles.row}
+    <Pressable
+      style={({ pressed }) => [styles.row, pressed && onPress && styles.rowPressed]}
       onPress={() => onPress?.(user.id)}
-      activeOpacity={onPress ? 0.7 : 1}
       disabled={!onPress}
+      android_ripple={onPress ? { color: colors.pressed } : undefined}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${user.username}, ${meta}`}
     >
-      <Avatar username={user.username} uri={user.avatar} size={48} isPremium={user.isPremium} />
+      {leading}
+      <Avatar username={user.username} uri={user.avatar} size={USER_ROW_AVATAR} premium={user.isPremium} />
       <View style={styles.info}>
-        <Text style={styles.username}>{user.username}</Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          Niveau {user.level} · {user.levelName}
-          {user.location ? ` · ${user.location}` : ''}
-        </Text>
+        <Text style={styles.username} numberOfLines={1}>{user.username}</Text>
+        <Text style={styles.meta} numberOfLines={1}>{meta}</Text>
       </View>
       {rightSlot}
       {showChevron && !rightSlot && (
-        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -42,12 +48,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: spacing.ms,
+    minHeight: 64,
+    gap: spacing.ms,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
   },
-  info: { flex: 1 },
-  username: { ...typography.h4, color: colors.textPrimary },
-  meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  rowPressed: { backgroundColor: colors.background },
+  info: { flex: 1, minWidth: 0 },
+  username: { ...typography.headline, color: colors.ink },
+  meta: { ...typography.footnote, color: colors.inkSecondary, marginTop: 1 },
 });

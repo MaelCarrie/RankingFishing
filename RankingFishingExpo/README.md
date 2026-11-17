@@ -1,138 +1,108 @@
 # RankingFishingExpo
 
-Application mobile de classement de pêche développée avec React Native et Expo.
+Application mobile RankingFishing : React Native 0.81, Expo SDK 54, TypeScript, Redux Toolkit, avec Supabase comme backend.
 
 ## Prérequis
 
-- Node.js **v20 ou supérieur** ([télécharger via nvm](https://github.com/nvm-sh/nvm) ou [nodejs.org](https://nodejs.org))
-- npm (inclus avec Node.js)
-- **Expo Go** sur votre smartphone — App Store (iOS) ou Google Play (Android)
-
-> Vérifier votre version de Node : `node -v` — elle doit commencer par `v20` ou plus.
+- Node.js **v20 ou plus** (`node -v`), avec npm
+- **Expo Go** sur le téléphone (App Store ou Google Play), pour tester sur mobile
+- Pour le backend : un projet Supabase actif, avec les migrations appliquées (voir [`../SUPABASE.md`](../SUPABASE.md), section 13)
+- Pour les tests E2E : un Chromium Playwright (`npx playwright install chromium`)
 
 ## Installation
 
-Cloner le dépôt puis installer les dépendances :
-
 ```bash
-git clone <url-du-repo>
-cd RankingFishingExpo
+git clone https://github.com/MaelCarrie/RankingFishing.git
+cd RankingFishing/RankingFishingExpo
 npm install --legacy-peer-deps
 ```
 
-## Lancer l'app sur son téléphone
+L'URL et la clé publique (anon) Supabase sont dans `src/config/supabase.ts`. Aucun fichier `.env` n'est nécessaire.
 
-### Cas 1 — Même réseau Wi-Fi (le plus simple)
+## Lancement
 
-Votre téléphone et l'ordinateur qui héberge le serveur doivent être **sur le même réseau Wi-Fi**.
-
-```bash
-npx expo start
-```
-
-1. Un QR code s'affiche dans le terminal.
-2. Sur **iPhone** : ouvrez l'app Appareil photo et scannez le QR code.
-3. Sur **Android** : ouvrez Expo Go, appuyez sur "Scan QR code" et scannez.
-4. L'app se charge automatiquement dans Expo Go.
-
-### Cas 2 — Réseaux différents (collaborateur à distance)
-
-Si vous n'êtes pas sur le même Wi-Fi, utilisez le mode tunnel :
+### Avec Supabase (prod)
 
 ```bash
-npx expo start --tunnel
+npx expo start          # QR code pour Expo Go (même réseau Wi-Fi)
+npx expo start --tunnel # téléphone sur un autre réseau
+npm run android         # ou npm run ios, npm run web
 ```
 
-La première fois, Expo vous propose d'installer `@expo/ngrok` — acceptez (`y`).  
-Un lien public est généré : le QR code fonctionne depuis n'importe quel réseau.
+Sur iPhone, scanner le QR code avec l'appareil photo ; sur Android, depuis Expo Go. On se connecte avec un vrai compte, créé depuis l'écran d'inscription.
 
-> Le mode tunnel est plus lent au premier chargement, c'est normal.
+### En mode mock (sans réseau)
 
-### Se connecter dans l'app
+```bash
+npm run web:mock
+```
 
-En mode développement, **n'importe quel email et mot de passe** fonctionne.  
-Exemple : `test@test.com` / `motdepasse123`
+Lance Expo web sur `http://localhost:8082` avec `EXPO_PUBLIC_USE_MOCK=1`. Aucune requête ne part vers Supabase : les données viennent de `src/api/mock/`.
 
-Vous arriverez sur un profil de démo avec des données pré-remplies (captures, classements, chat).
+- Compte démo : `demo@rankingfishing.app` / `demo1234`
+- Les comptes créés en mock sont gardés dans le stockage local du navigateur.
 
-## Lancement du projet
+Sur téléphone, le même mode s'obtient avec `EXPO_PUBLIC_USE_MOCK=1 npx expo start`.
 
-## Architecture du projet
+### Recalculer les classements
+
+```bash
+npm run recalc-rankings
+```
+
+Appelle l'Edge Function `recalculate-rankings` (script `scripts/recalc-rankings.sh`). La fonction doit être déployée au préalable : `supabase functions deploy recalculate-rankings`.
+
+## Tests
+
+| Commande | Ce qu'elle lance |
+| -------- | ---------------- |
+| `npm test` | Tests unitaires jest (`__tests__/`) : slices Redux, utilitaires, API mock. 115 tests |
+| `npm run e2e` | Tests E2E Playwright (`e2e/`) sur Expo web en mode mock, Chromium mobile 390×844. 10 tests |
+
+`npm run e2e` démarre `npm run web:mock` tout seul, ou réutilise un serveur déjà lancé sur le port 8082. Les traces et captures d'échec vont dans `e2e/.results/`.
+
+## Structure
 
 ```
 RankingFishingExpo/
+├── App.tsx                 Point d'entrée : providers (Redux, SafeArea, Toast) et navigation
+├── app.json                Configuration Expo (icône, splash, permissions)
+├── assets/brand/           Logo, icône d'app, icône adaptative Android, splash
 ├── src/
-│   ├── screens/           # Écrans de l'application
-│   │   ├── home/         # Écran d'accueil
-│   │   ├── captures/     # Écran des captures
-│   │   ├── chat/        # Écran de chat
-│   │   └── profile/     # Écran de profil
-│   ├── components/       # Composants réutilisables
-│   ├── navigation/       # Configuration de la navigation
-│   ├── services/        # Services (API, authentification, etc.)
-│   ├── utils/           # Fonctions utilitaires
-│   ├── hooks/           # Hooks personnalisés
-│   ├── constants/       # Constants et configurations
-│   └── types/          # Types TypeScript
-├── assets/             # Ressources statiques
-│   ├── images/        # Images
-│   ├── fonts/         # Polices
-│   └── icons/         # Icônes
-├── App.tsx            # Point d'entrée de l'application
-└── package.json       # Dépendances et scripts
+│   ├── api/                Accès aux données Supabase (auth, captures, comments, chat,
+│   │   │                   rankings, badges, follows, users, profile, storage)
+│   │   └── mock/           Données et base en mémoire du mode mock
+│   ├── components/
+│   │   ├── ui/             Design system « fiche de pesée » (voir son README)
+│   │   ├── badges/         Icônes et overlay de déblocage des badges
+│   │   ├── captures/       Carte de capture, squelette, sélecteur de date, partage
+│   │   ├── chat/           Bulles, carte de capture partagée, sélecteurs
+│   │   ├── rankings/       Podium, ligne de classement
+│   │   ├── social/         En-tête et sections de profil, ligne utilisateur
+│   │   └── common/         Anciens composants génériques
+│   ├── config/             Client Supabase (supabase.ts), constantes
+│   ├── navigation/         AppNavigator (racine), AuthNavigator, MainNavigator, types, en-têtes
+│   ├── screens/            Un dossier par domaine : auth, home, captures, rankings, chat,
+│   │                       profile, social, search, settings, premium, onboarding
+│   ├── store/              Store Redux, slices (auth, captures, rankings, chat, badges), types
+│   ├── theme/              Tokens : couleurs, typographie, espacements, mouvement
+│   └── utils/              Formatage, validation, score, compression d'image, partage, préférences
+├── supabase/
+│   ├── migrations/         Migrations SQL, à appliquer dans l'ordre des noms
+│   └── functions/recalculate-rankings/   Edge Function des classements (Deno)
+├── scripts/                recalc-rankings.sh
+├── __tests__/              Tests jest
+├── e2e/                    Tests Playwright
+├── jest.config.js
+├── playwright.config.ts
+└── PRODUCT.md              Contexte produit (utilisateurs, usage, positionnement)
 ```
 
-### Description des dossiers
+Le design system (règles, tokens, primitives) est documenté dans [`src/components/ui/README.md`](src/components/ui/README.md). L'état d'avancement du projet est dans [`../STATE.md`](../STATE.md).
 
-- **screens/** : Contient tous les écrans principaux de l'application. Chaque écran est dans son propre dossier avec ses composants spécifiques.
-- **components/** : Composants réutilisables à travers l'application.
-- **navigation/** : Configuration des routes et de la navigation.
-- **services/** : Logique métier, appels API, gestion de l'authentification.
-- **utils/** : Fonctions utilitaires réutilisables.
-- **hooks/** : Hooks React personnalisés.
-- **constants/** : Variables constantes et configurations.
-- **types/** : Définitions des types TypeScript.
+## Dépannage
 
-## Commandes utiles
-
-- Démarrer l'application avec un cache propre :
-```bash
-npx expo start -c
-```
-
-- Lancer spécifiquement sur Android :
-```bash
-npx expo start --android
-```
-
-- Lancer spécifiquement sur iOS :
-```bash
-npx expo start --ios
-```
-
-## Dépendances principales
-
-- Expo
-- React Navigation
-- React Native Safe Area Context
-- React Native Screens
-
-## Résolution des problèmes courants
-
-Si vous rencontrez des problèmes :
-
-1. Nettoyez le cache :
-```bash
-npx expo start -c
-```
-
-2. Réinstallez les dépendances :
-```bash
-rm -rf node_modules
-rm package-lock.json
-npm install
-```
-
-3. Assurez-vous que votre téléphone et votre ordinateur sont sur le même réseau WiFi
-
-4. Vérifiez que Expo Go est à jour sur votre téléphone
+- Cache Metro : `npx expo start -c`
+- Dépendances : `rm -rf node_modules package-lock.json && npm install --legacy-peer-deps`
+- Erreur réseau ou 521 au démarrage : le projet Supabase est peut-être en pause, il faut le restaurer depuis le dashboard. En attendant, utiliser le mode mock.
+- Téléphone qui ne charge pas l'app : vérifier qu'il est sur le même Wi-Fi que l'ordinateur, sinon passer en `--tunnel`, et que Expo Go est à jour.

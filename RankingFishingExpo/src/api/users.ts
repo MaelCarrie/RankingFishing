@@ -1,4 +1,7 @@
-import { supabase } from '../config/supabase';
+import { supabase, USE_MOCK_DATA } from '../config/supabase';
+import { User } from '../store/types';
+import * as mockDb from './mock/db';
+import { delay } from '../utils/helpers';
 
 export interface UserSearchResult {
   id: string;
@@ -24,6 +27,24 @@ function mapUser(row: any): UserSearchResult {
   };
 }
 
+export function userToSearchResult(u: User): UserSearchResult {
+  return {
+    id: u.id,
+    username: u.username,
+    avatar: u.avatar,
+    location: u.location || undefined,
+    level: u.level,
+    levelName: u.levelName,
+    isPremium: u.isPremium,
+    xp: u.xp,
+  };
+}
+
+async function mockUsersByXp(): Promise<UserSearchResult[]> {
+  const all = await mockDb.getAllUsers();
+  return all.sort((a, b) => b.xp - a.xp).map(userToSearchResult);
+}
+
 const USER_COLUMNS = 'id, username, avatar_url, location, level, level_name, is_premium, xp';
 
 // ─── Recherche d'utilisateurs par username (case-insensitive, substring) ──────
@@ -31,6 +52,14 @@ const USER_COLUMNS = 'id, username, avatar_url, location, level, level_name, is_
 export async function searchUsers(query: string, limit = 20): Promise<UserSearchResult[]> {
   const q = query.trim();
   if (!q) return [];
+
+  if (USE_MOCK_DATA) {
+    await delay(200);
+    const needle = q.toLowerCase();
+    return (await mockUsersByXp())
+      .filter((u) => u.username.toLowerCase().includes(needle))
+      .slice(0, limit);
+  }
 
   const { data, error } = await supabase
     .from('users')
@@ -46,6 +75,11 @@ export async function searchUsers(query: string, limit = 20): Promise<UserSearch
 // ─── Top pêcheurs (par XP) pour l'état vide de la recherche ───────────────────
 
 export async function fetchTopUsers(limit = 10): Promise<UserSearchResult[]> {
+  if (USE_MOCK_DATA) {
+    await delay(200);
+    return (await mockUsersByXp()).slice(0, limit);
+  }
+
   const { data, error } = await supabase
     .from('users')
     .select(USER_COLUMNS)

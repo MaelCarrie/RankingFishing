@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator,
+  View, Text, TextInput, FlatList, Pressable, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -9,8 +8,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { MainStackParamList } from '../../navigation/types';
 import { useAppSelector } from '../../store';
-import { colors, spacing, typography } from '../../theme';
-import Avatar from '../../components/common/Avatar';
+import { colors, spacing, typography, borderRadius, hitSlop } from '../../theme';
+import { EmptyState, ErrorState, Skeleton } from '../../components/ui';
+import UserRow from '../../components/social/UserRow';
 import { searchUsers, fetchTopUsers, UserSearchResult } from '../../api/users';
 
 type Nav = NativeStackNavigationProp<MainStackParamList>;
@@ -26,6 +26,7 @@ export default function UserSearchScreen() {
   const [isSearching, setSearching] = useState(false);
   const [isLoadingTop, setLoadingTop] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Top users on mount
@@ -62,7 +63,7 @@ export default function UserSearchScreen() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, currentUser?.id]);
+  }, [query, currentUser?.id, retryKey]);
 
   const onPressUser = useCallback((userId: string) => {
     navigation.navigate('UserProfile', { userId });
@@ -74,52 +75,71 @@ export default function UserSearchScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      {/* Input */}
+      {/* Champ de recherche */}
       <View style={styles.inputWrapper}>
         <View style={styles.inputBox}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
+          <Ionicons name="search-outline" size={18} color={colors.inkSecondary} />
           <TextInput
             style={styles.input}
             value={query}
             onChangeText={setQuery}
             placeholder="Rechercher un pêcheur..."
-            placeholderTextColor={colors.textDisabled}
+            placeholderTextColor={colors.inkTertiary}
             autoFocus
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
+            accessibilityLabel="Rechercher un pêcheur"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={hitSlop}
+              style={({ pressed }) => [styles.clearBtn, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Effacer la recherche"
+            >
+              <Ionicons name="close-circle" size={18} color={colors.inkSecondary} />
+            </Pressable>
           )}
         </View>
       </View>
 
-      {/* Section title (top users) */}
+      {/* Titre de section (suggestions) */}
       {showTopUsers && !isLoadingTop && topUsers.length > 0 && (
-        <Text style={styles.sectionTitle}>🏆 Top pêcheurs</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Pêcheurs les plus expérimentés</Text>
       )}
 
-      {/* Body */}
+      {/* Corps */}
       {showLoader ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+        <View accessible accessibilityLabel="Recherche en cours" accessibilityState={{ busy: true }}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <View key={i} style={styles.skeletonRow}>
+              <Skeleton width={44} height={44} radius={22} />
+              <View style={styles.skeletonText}>
+                <Skeleton width="45%" height={14} />
+                <Skeleton width="70%" height={12} style={styles.skeletonGap} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : error ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={36} color={colors.error} />
-          <Text style={styles.emptyText}>{error}</Text>
+          <ErrorState
+            title="La recherche a échoué"
+            message={`${error}\nVérifie ta connexion puis réessaie.`}
+            onRetry={() => setRetryKey((k) => k + 1)}
+          />
         </View>
       ) : data.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name={showTopUsers ? 'people-outline' : 'search-outline'} size={48} color={colors.textDisabled} />
-          <Text style={styles.emptyText}>
-            {showTopUsers
-              ? 'Aucun pêcheur à afficher'
-              : 'Aucun pêcheur trouvé'}
-          </Text>
+          <EmptyState
+            icon={showTopUsers ? 'people-outline' : 'search-outline'}
+            title={showTopUsers ? 'Aucun pêcheur à afficher' : 'Aucun pêcheur trouvé'}
+            message={showTopUsers
+              ? 'Tape un pseudo pour trouver un pêcheur.'
+              : `Aucun pseudo ne correspond à « ${query.trim()} ». Vérifie l'orthographe.`}
+          />
         </View>
       ) : (
         <FlatList
@@ -127,31 +147,16 @@ export default function UserSearchScreen() {
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item, index }) => (
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => onPressUser(item.id)}
-              activeOpacity={0.7}
-            >
-              {showTopUsers && (
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>#{index + 1}</Text>
-                </View>
-              )}
-              <Avatar
-                username={item.username}
-                uri={item.avatar}
-                size={48}
-                isPremium={item.isPremium}
-              />
-              <View style={styles.rowInfo}>
-                <Text style={styles.rowUsername}>{item.username}</Text>
-                <Text style={styles.rowMeta} numberOfLines={1}>
-                  Niveau {item.level} · {item.levelName}
-                  {item.location ? ` · ${item.location}` : ''}
+            <UserRow
+              user={item}
+              onPress={onPressUser}
+              showChevron
+              leading={showTopUsers ? (
+                <Text style={styles.rankText} accessibilityLabel={`${index + 1}${index === 0 ? 'er' : 'e'}`}>
+                  {index + 1}
                 </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+              ) : undefined}
+            />
           )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -165,68 +170,61 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
   inputWrapper: {
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.ms,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
   },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 10,
-    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: borderRadius.control,
+    paddingLeft: spacing.ms,
     gap: spacing.sm,
-    height: 42,
+    minHeight: 44,
   },
   input: {
     flex: 1,
     ...typography.body,
-    color: colors.textPrimary,
-    padding: 0,
+    color: colors.ink,
+    paddingVertical: spacing.sm,
   },
+  clearBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.6 },
 
   sectionTitle: {
-    ...typography.label,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.inkSecondary,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
-    fontSize: 11,
   },
 
   list: { paddingBottom: spacing.xl },
-  row: {
+  rankText: {
+    width: 24,
+    textAlign: 'center',
+    ...typography.callout,
+    fontWeight: '600',
+    color: colors.inkSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+
+  skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    gap: spacing.ms,
+    minHeight: 64,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
   },
-  rankBadge: {
-    width: 26,
-    alignItems: 'center',
-  },
-  rankText: {
-    ...typography.bodySmall,
-    color: colors.secondary,
-    fontWeight: '700',
-  },
-  rowInfo: { flex: 1 },
-  rowUsername: { ...typography.h4, color: colors.textPrimary },
-  rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  skeletonText: { flex: 1 },
+  skeletonGap: { marginTop: spacing.sm },
 
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  center: { flex: 1, justifyContent: 'center' },
 });

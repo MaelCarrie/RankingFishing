@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Alert
+  View, Text, StyleSheet, Pressable,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
@@ -10,8 +11,11 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { signIn, clearError } from '../../store/slices/authSlice';
 import { validateEmail, validatePassword } from '../../utils/validation';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import Button from '../../components/common/Button';
+import Button from '../../components/ui/Button';
+import Logo from '../../components/ui/Logo';
 import Input from '../../components/common/Input';
+import { USE_MOCK_DATA } from '../../config/supabase';
+import { MOCK_DEMO_EMAIL, MOCK_DEMO_PASSWORD } from '../../api/mock/data';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'> };
 
@@ -26,7 +30,10 @@ export default function LoginScreen({ navigation }: Props) {
 
   function validate() {
     const ee = validateEmail(email);
-    const pe = validatePassword(password);
+    // En mode mock, le compte démo n'a pas à respecter les règles de création de mot de passe
+    const pe = USE_MOCK_DATA
+      ? (password ? null : 'Le mot de passe est requis')
+      : validatePassword(password);
     setEmailError(ee);
     setPasswordError(pe);
     return !ee && !pe;
@@ -42,19 +49,36 @@ export default function LoginScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Header */}
+          {/* Marque */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🎣</Text>
-            <Text style={styles.appName}>RankingFishing</Text>
-            <Text style={styles.tagline}>Pêchez, partagez, classez-vous !</Text>
+            <Logo size={72} />
+            <Text style={styles.appName} accessibilityRole="header">RankingFishing</Text>
+            <Text style={styles.tagline}>Enregistre tes prises, grimpe au classement.</Text>
           </View>
 
           {/* Formulaire */}
           <View style={styles.form}>
-            <Text style={styles.title}>Connexion</Text>
+            {USE_MOCK_DATA && (
+              <Pressable
+                style={({ pressed }) => [styles.demoHint, pressed && styles.demoHintPressed]}
+                onPress={() => { setEmail(MOCK_DEMO_EMAIL); setPassword(MOCK_DEMO_PASSWORD); }}
+                accessibilityRole="button"
+                accessibilityLabel="Remplir le compte démo"
+                testID="login-demo-hint"
+              >
+                <Ionicons name="person-circle-outline" size={22} color={colors.primaryDark} />
+                <View style={styles.demoHintBody}>
+                  <Text style={styles.demoHintTitle}>Mode démo : remplir le compte</Text>
+                  <Text style={styles.demoHintText} numberOfLines={1}>
+                    {MOCK_DEMO_EMAIL} / {MOCK_DEMO_PASSWORD}
+                  </Text>
+                </View>
+              </Pressable>
+            )}
 
             {error && (
-              <View style={styles.errorBanner}>
+              <View style={styles.errorBanner} accessibilityRole="alert">
+                <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
                 <Text style={styles.errorBannerText}>{error}</Text>
               </View>
             )}
@@ -66,9 +90,12 @@ export default function LoginScreen({ navigation }: Props) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="emailAddress"
               leftIcon="mail-outline"
               error={emailError}
-              placeholder="vous@exemple.fr"
+              placeholder="ton@email.fr"
+              accessibilityLabel="Email"
+              testID="login-email"
             />
 
             <Input
@@ -76,57 +103,45 @@ export default function LoginScreen({ navigation }: Props) {
               value={password}
               onChangeText={setPassword}
               isPassword
+              autoComplete="password"
+              textContentType="password"
               leftIcon="lock-closed-outline"
               error={passwordError}
               placeholder="••••••••"
+              accessibilityLabel="Mot de passe"
+              onSubmitEditing={handleLogin}
+              returnKeyType="go"
+              testID="login-password"
+              containerStyle={styles.passwordField}
             />
 
-            <TouchableOpacity
+            <Button
+              title="Mot de passe oublié ?"
+              variant="text"
+              size="sm"
               onPress={() => navigation.navigate('ForgotPassword')}
               style={styles.forgotLink}
-            >
-              <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
-            </TouchableOpacity>
+            />
 
             <Button
               title="Se connecter"
               onPress={handleLogin}
               loading={isLoading}
               fullWidth
-              size="lg"
               style={styles.loginBtn}
-            />
-
-            {/* Séparateur */}
-            <View style={styles.separator}>
-              <View style={styles.separatorLine} />
-              <Text style={styles.separatorText}>ou</Text>
-              <View style={styles.separatorLine} />
-            </View>
-
-            {/* Boutons OAuth (UI only) */}
-            <Button
-              title="Continuer avec Google"
-              onPress={() => Alert.alert('Bientôt disponible', 'La connexion Google sera disponible après configuration Firebase.')}
-              variant="outline"
-              fullWidth
-              style={styles.oauthBtn}
-            />
-            <Button
-              title="Continuer avec Facebook"
-              onPress={() => Alert.alert('Bientôt disponible', 'La connexion Facebook sera disponible après configuration Firebase.')}
-              variant="outline"
-              fullWidth
-              style={styles.oauthBtn}
             />
           </View>
 
-          {/* Footer */}
+          {/* Inscription */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Pas encore de compte ? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.footerLink}>S'inscrire</Text>
-            </TouchableOpacity>
+            <Text style={styles.footerText}>Pas encore de compte ?</Text>
+            <Button
+              title="S'inscrire"
+              variant="text"
+              size="sm"
+              onPress={() => navigation.navigate('Register')}
+              accessibilityLabel="S'inscrire : créer un compte"
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -137,46 +152,60 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   kav: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+  },
 
   header: { alignItems: 'center', marginBottom: spacing.xl },
-  logo: { fontSize: 64, marginBottom: spacing.sm },
-  appName: { ...typography.h1, color: colors.primary },
-  tagline: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  appName: { ...typography.title1, color: colors.ink, marginTop: spacing.md },
+  tagline: { ...typography.callout, color: colors.inkSecondary, marginTop: spacing.xs, textAlign: 'center' },
 
-  form: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
+  form: {},
+
+  demoHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.ms,
+    minHeight: 56,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.lg,
-    shadowColor: '#1B2631',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: borderRadius.control,
+    backgroundColor: colors.primaryTint,
   },
-  title: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.lg },
+  demoHintPressed: { backgroundColor: '#DFEBDD' },
+  demoHintBody: { flex: 1 },
+  demoHintTitle: { ...typography.subhead, fontWeight: '600', color: colors.primaryDark },
+  demoHintText: { ...typography.footnote, color: colors.inkSecondary, marginTop: 1 },
 
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.errorLight,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.control,
+    padding: spacing.ms,
     marginBottom: spacing.md,
   },
-  errorBannerText: { ...typography.bodySmall, color: colors.error },
+  errorBannerText: { ...typography.subhead, color: colors.error, flex: 1 },
 
-  forgotLink: { alignSelf: 'flex-end', marginBottom: spacing.lg, marginTop: -spacing.sm },
-  forgotText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
+  passwordField: { marginBottom: spacing.xs },
+  forgotLink: { alignSelf: 'flex-end', marginRight: -spacing.ms, marginBottom: spacing.md },
 
-  loginBtn: { marginBottom: spacing.md },
+  loginBtn: {},
 
-  separator: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.md },
-  separatorLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  separatorText: { ...typography.bodySmall, color: colors.textSecondary, marginHorizontal: spacing.md },
-
-  oauthBtn: { marginBottom: spacing.sm },
-
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  footerText: { ...typography.body, color: colors.textSecondary },
-  footerLink: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    marginTop: spacing.xl,
+  },
+  footerText: { ...typography.callout, color: colors.inkSecondary },
 });

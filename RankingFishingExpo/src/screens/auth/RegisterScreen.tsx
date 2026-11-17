@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView
+  View, Text, StyleSheet, Pressable,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';
@@ -10,9 +11,11 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { register, clearError } from '../../store/slices/authSlice';
 import { validateEmail, validatePassword, validatePasswordConfirm, validateUsername } from '../../utils/validation';
 import { colors, spacing, typography, borderRadius } from '../../theme';
-import { FISHING_TYPE_LABELS } from '../../config/constants';
+import { FISHING_TYPE_LABELS, FR_REGIONS } from '../../config/constants';
 import { FishingType } from '../../store/types';
-import Button from '../../components/common/Button';
+import Button from '../../components/ui/Button';
+import Chip from '../../components/ui/Chip';
+import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/common/Input';
 
 type Props = { navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'> };
@@ -28,6 +31,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<FishingType[]>([]);
+  const [region, setRegion] = useState<string | null>(null);
   const [cguAccepted, setCguAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
@@ -43,7 +47,7 @@ export default function RegisterScreen({ navigation }: Props) {
       username: validateUsername(username),
       password: validatePassword(password),
       confirm: validatePasswordConfirm(password, confirm),
-      cgu: !cguAccepted ? 'Vous devez accepter les CGU' : null,
+      cgu: !cguAccepted ? 'Accepte les CGU pour continuer' : null,
     };
     setErrors(e);
     return Object.values(e).every((v) => !v);
@@ -52,39 +56,38 @@ export default function RegisterScreen({ navigation }: Props) {
   async function handleRegister() {
     if (!validate()) return;
     dispatch(clearError());
-    dispatch(register({ email, password, username }));
+    dispatch(register({ email, password, username, region: region ?? undefined }));
   }
 
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+        <View style={styles.topBar}>
+          <IconButton icon="chevron-back" iconSize={26} accessibilityLabel="Retour" onPress={() => navigation.goBack()} />
+        </View>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Text style={styles.backText}>← Retour</Text>
-            </TouchableOpacity>
-            <Text style={styles.title}>Créer un compte</Text>
-          </View>
+          <Text style={styles.title} accessibilityRole="header">Créer un compte</Text>
+          <Text style={styles.subtitle}>Publie tes prises et entre au classement de ta région.</Text>
 
           {error && (
-            <View style={styles.errorBanner}>
+            <View style={styles.errorBanner} accessibilityRole="alert">
+              <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
               <Text style={styles.errorBannerText}>{error}</Text>
             </View>
           )}
 
-          {/* Infos de base */}
+          {/* Compte */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations</Text>
             <Input
               label="Nom d'utilisateur"
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
+              autoComplete="username"
               leftIcon="person-outline"
               error={errors.username}
               placeholder="MonPseudo"
-              hint="3-20 caractères, lettres et chiffres uniquement"
+              hint="3 à 20 caractères, lettres et chiffres uniquement"
             />
             <Input
               label="Email"
@@ -92,64 +95,82 @@ export default function RegisterScreen({ navigation }: Props) {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
               leftIcon="mail-outline"
               error={errors.email}
-              placeholder="vous@exemple.fr"
+              placeholder="ton@email.fr"
             />
             <Input
               label="Mot de passe"
               value={password}
               onChangeText={setPassword}
               isPassword
+              autoComplete="new-password"
               leftIcon="lock-closed-outline"
               error={errors.password}
               placeholder="••••••••"
-              hint="8 caractères min., 1 majuscule, 1 chiffre"
+              hint="8 caractères minimum, dont 1 majuscule et 1 chiffre"
             />
             <Input
               label="Confirmer le mot de passe"
               value={confirm}
               onChangeText={setConfirm}
               isPassword
+              autoComplete="new-password"
               leftIcon="lock-closed-outline"
               error={errors.confirm}
               placeholder="••••••••"
+              containerStyle={styles.lastField}
             />
           </View>
 
           {/* Spécialités */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mes spécialités de pêche</Text>
-            <Text style={styles.sectionHint}>Sélectionne autant que tu veux</Text>
-            <View style={styles.typesGrid}>
-              {FISHING_TYPES.map(([type, label]) => {
-                const selected = selectedTypes.includes(type);
+            <Text style={styles.sectionTitle} accessibilityRole="header">Tes spécialités</Text>
+            <Text style={styles.sectionHint}>Choisis-en autant que tu veux.</Text>
+            <View style={styles.chips}>
+              {FISHING_TYPES.map(([type, label]) => (
+                <Chip
+                  key={type}
+                  label={label}
+                  selected={selectedTypes.includes(type)}
+                  onPress={() => toggleType(type)}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* Région */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle} accessibilityRole="header">Ta région</Text>
+            <Text style={styles.sectionHint}>Facultatif. Elle sert au classement régional.</Text>
+            <View style={styles.chips}>
+              {FR_REGIONS.map((r) => {
+                const selected = region === r;
                 return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.typeChip, selected && styles.typeChipSelected]}
-                    onPress={() => toggleType(type)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.typeChipText, selected && styles.typeChipTextSelected]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
+                  <Chip key={r} label={r} selected={selected} onPress={() => setRegion(selected ? null : r)} />
                 );
               })}
             </View>
           </View>
 
           {/* CGU */}
-          <TouchableOpacity style={styles.cguRow} onPress={() => setCguAccepted((v) => !v)} activeOpacity={0.7}>
-            <View style={[styles.checkbox, cguAccepted && styles.checkboxChecked]}>
-              {cguAccepted && <Text style={styles.checkboxIcon}>✓</Text>}
+          <Pressable
+            style={({ pressed }) => [styles.cguRow, pressed && styles.cguRowPressed]}
+            onPress={() => setCguAccepted((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: cguAccepted }}
+            aria-checked={cguAccepted}
+            accessibilityLabel="J'accepte les Conditions Générales d'Utilisation"
+          >
+            <View style={[styles.checkbox, cguAccepted && styles.checkboxChecked, !!errors.cgu && !cguAccepted && styles.checkboxError]}>
+              {cguAccepted && <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />}
             </View>
             <Text style={styles.cguText}>
               J'accepte les{' '}
               <Text style={styles.cguLink}>Conditions Générales d'Utilisation</Text>
             </Text>
-          </TouchableOpacity>
+          </Pressable>
           {errors.cgu && <Text style={styles.errorText}>{errors.cgu}</Text>}
 
           <Button
@@ -157,15 +178,12 @@ export default function RegisterScreen({ navigation }: Props) {
             onPress={handleRegister}
             loading={isLoading}
             fullWidth
-            size="lg"
             style={styles.registerBtn}
           />
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Déjà un compte ? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.footerLink}>Se connecter</Text>
-            </TouchableOpacity>
+            <Text style={styles.footerText}>Déjà un compte ?</Text>
+            <Button title="Se connecter" variant="text" size="sm" onPress={() => navigation.navigate('Login')} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -176,62 +194,69 @@ export default function RegisterScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   kav: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.lg },
+  topBar: { paddingHorizontal: spacing.xs, minHeight: 52, justifyContent: 'center' },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
 
-  header: { marginBottom: spacing.lg },
-  backBtn: { marginBottom: spacing.md },
-  backText: { ...typography.body, color: colors.primary, fontWeight: '600' },
-  title: { ...typography.h2, color: colors.textPrimary },
+  title: { ...typography.largeTitle, color: colors.ink },
+  subtitle: { ...typography.callout, color: colors.inkSecondary, marginTop: spacing.xs, marginBottom: spacing.lg },
 
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.errorLight,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.control,
+    padding: spacing.ms,
     marginBottom: spacing.md,
   },
-  errorBannerText: { ...typography.bodySmall, color: colors.error },
+  errorBannerText: { ...typography.subhead, color: colors.error, flex: 1 },
 
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+  section: { marginBottom: spacing.xl },
+  lastField: { marginBottom: 0 },
+  sectionTitle: { ...typography.headline, color: colors.ink },
+  sectionHint: { ...typography.subhead, color: colors.inkSecondary, marginTop: 2, marginBottom: spacing.ms },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+
+  cguRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 48,
+    marginHorizontal: -spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.control,
+    gap: spacing.ms,
   },
-  sectionTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: spacing.md },
-  sectionHint: { ...typography.bodySmall, color: colors.textSecondary, marginTop: -spacing.sm, marginBottom: spacing.md },
-
-  typesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  typeChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  typeChipSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceVariant },
-  typeChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
-  typeChipTextSelected: { color: colors.primary, fontWeight: '700' },
-
-  cguRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  cguRowPressed: { backgroundColor: colors.pressed },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginRight: spacing.sm,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
-  checkboxIcon: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  cguText: { ...typography.bodySmall, color: colors.textSecondary, flex: 1 },
-  cguLink: { color: colors.primary, fontWeight: '600' },
-  errorText: { ...typography.caption, color: colors.error, marginBottom: spacing.md },
+  checkboxError: { borderColor: colors.error },
+  cguText: { ...typography.subhead, color: colors.ink, flex: 1 },
+  cguLink: { color: colors.primaryDark, fontWeight: '600' },
+  errorText: { ...typography.footnote, color: colors.error, marginTop: spacing.xs },
 
-  registerBtn: { marginBottom: spacing.lg },
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: spacing.lg },
-  footerText: { ...typography.body, color: colors.textSecondary },
-  footerLink: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  registerBtn: { marginTop: spacing.lg },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    marginTop: spacing.lg,
+  },
+  footerText: { ...typography.callout, color: colors.inkSecondary },
 });

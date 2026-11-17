@@ -1,5 +1,21 @@
-import { supabase } from '../config/supabase';
-import { UserSearchResult } from './users';
+import { supabase, USE_MOCK_DATA } from '../config/supabase';
+import { UserSearchResult, userToSearchResult } from './users';
+import * as mockDb from './mock/db';
+import { delay } from '../utils/helpers';
+
+const MOCK_LATENCY = 150;
+
+async function mockUserList(ids: string[]): Promise<UserSearchResult[]> {
+  const out: UserSearchResult[] = [];
+  for (const id of ids) {
+    const u = await mockDb.getUser(id);
+    if (u) out.push(userToSearchResult(u));
+  }
+  return out;
+}
+
+const newestFirst = (a: { createdAt: string }, b: { createdAt: string }) =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 
 export type FollowStatus = 'not_following' | 'requested' | 'following' | 'self';
 
@@ -29,6 +45,13 @@ function mapUser(row: any): UserSearchResult {
 export async function getFollowStatus(myId: string, targetId: string): Promise<FollowStatus> {
   if (myId === targetId) return 'self';
 
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    if (mockDb.isFollowing(myId, targetId)) return 'following';
+    if (mockDb.hasRequest(myId, targetId)) return 'requested';
+    return 'not_following';
+  }
+
   const { data: follow } = await supabase
     .from('follows')
     .select('follower_id')
@@ -53,6 +76,18 @@ export async function getFollowStatus(myId: string, targetId: string): Promise<F
 export async function fetchRelationship(myId: string, targetId: string): Promise<Relationship> {
   if (myId === targetId) {
     return { myStatus: 'self', theyFollowMe: false, incomingRequest: false };
+  }
+
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    let status: FollowStatus = 'not_following';
+    if (mockDb.isFollowing(myId, targetId)) status = 'following';
+    else if (mockDb.hasRequest(myId, targetId)) status = 'requested';
+    return {
+      myStatus: status,
+      theyFollowMe: mockDb.isFollowing(targetId, myId),
+      incomingRequest: mockDb.hasRequest(targetId, myId),
+    };
   }
 
   const { data: follows } = await supabase
@@ -86,6 +121,15 @@ export async function fetchRelationship(myId: string, targetId: string): Promise
 // ─── Envoi / annulation d'une demande ────────────────────────────────────────
 
 export async function sendFollowRequest(requesterId: string, targetId: string): Promise<void> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    if (mockDb.isFollowing(requesterId, targetId)) return;
+    if (!mockDb.hasRequest(requesterId, targetId)) {
+      mockDb.followRequests.push({ requesterId, targetId, createdAt: new Date().toISOString() });
+    }
+    return;
+  }
+
   const { error } = await supabase
     .from('follow_requests')
     .insert({ requester_id: requesterId, target_id: targetId });
@@ -93,6 +137,12 @@ export async function sendFollowRequest(requesterId: string, targetId: string): 
 }
 
 export async function cancelFollowRequest(requesterId: string, targetId: string): Promise<void> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    mockDb.removeRequest(requesterId, targetId);
+    return;
+  }
+
   const { error } = await supabase
     .from('follow_requests')
     .delete()
@@ -104,11 +154,26 @@ export async function cancelFollowRequest(requesterId: string, targetId: string)
 // ─── Acceptation / refus (RPCs security definer côté SQL) ────────────────────
 
 export async function acceptFollowRequest(requesterId: string): Promise<void> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    const me = await mockDb.getSessionUserId();
+    if (!mockDb.removeRequest(requesterId, me)) throw new Error('Demande introuvable');
+    mockDb.addFollow(requesterId, me);
+    return;
+  }
+
   const { error } = await supabase.rpc('accept_follow_request', { p_requester: requesterId });
   if (error) throw error;
 }
 
 export async function declineFollowRequest(requesterId: string): Promise<void> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    const me = await mockDb.getSessionUserId();
+    mockDb.removeRequest(requesterId, me);
+    return;
+  }
+
   const { error } = await supabase.rpc('decline_follow_request', { p_requester: requesterId });
   if (error) throw error;
 }
@@ -116,6 +181,12 @@ export async function declineFollowRequest(requesterId: string): Promise<void> {
 // ─── Désabonnement ───────────────────────────────────────────────────────────
 
 export async function unfollow(myId: string, targetId: string): Promise<void> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    mockDb.removeFollow(myId, targetId);
+    return;
+  }
+
   const { error } = await supabase
     .from('follows')
     .delete()
@@ -127,6 +198,12 @@ export async function unfollow(myId: string, targetId: string): Promise<void> {
 // ─── Listes (abonnés / abonnements / demandes reçues) ────────────────────────
 
 export async function fetchFollowers(userId: string): Promise<UserSearchResult[]> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    const rows = mockDb.follows.filter((x) => x.followedId === userId).sort(newestFirst);
+    return mockUserList(rows.map((x) => x.followerId));
+  }
+
   const { data, error } = await supabase
     .from('follows')
     .select(`follower:users!follower_id(${USER_COLS}), created_at`)
@@ -137,6 +214,12 @@ export async function fetchFollowers(userId: string): Promise<UserSearchResult[]
 }
 
 export async function fetchFollowing(userId: string): Promise<UserSearchResult[]> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    const rows = mockDb.follows.filter((x) => x.followerId === userId).sort(newestFirst);
+    return mockUserList(rows.map((x) => x.followedId));
+  }
+
   const { data, error } = await supabase
     .from('follows')
     .select(`followed:users!followed_id(${USER_COLS}), created_at`)
@@ -147,6 +230,12 @@ export async function fetchFollowing(userId: string): Promise<UserSearchResult[]
 }
 
 export async function fetchPendingRequests(myId: string): Promise<UserSearchResult[]> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    const rows = mockDb.followRequests.filter((x) => x.targetId === myId).sort(newestFirst);
+    return mockUserList(rows.map((x) => x.requesterId));
+  }
+
   const { data, error } = await supabase
     .from('follow_requests')
     .select(`requester:users!requester_id(${USER_COLS}), created_at`)
@@ -157,6 +246,11 @@ export async function fetchPendingRequests(myId: string): Promise<UserSearchResu
 }
 
 export async function fetchPendingRequestsCount(myId: string): Promise<number> {
+  if (USE_MOCK_DATA) {
+    await delay(MOCK_LATENCY);
+    return mockDb.followRequests.filter((x) => x.targetId === myId).length;
+  }
+
   const { count, error } = await supabase
     .from('follow_requests')
     .select('*', { count: 'exact', head: true })

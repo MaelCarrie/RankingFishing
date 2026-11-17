@@ -12,14 +12,14 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, { bg: string; text: string }> = {
-  primary: { bg: colors.surfaceVariant, text: colors.primary },
-  secondary: { bg: '#FFF8E1', text: colors.secondaryDark },
+  primary: { bg: colors.primaryTint, text: colors.primaryDark },
+  secondary: { bg: colors.goldTint, text: colors.goldInk },
   success: { bg: colors.successLight, text: colors.success },
   warning: { bg: colors.warningLight, text: colors.warning },
   error: { bg: colors.errorLight, text: colors.error },
-  info: { bg: '#E3F2FD', text: colors.info },
-  premium: { bg: colors.premiumBg, text: colors.secondaryDark },
-  neutral: { bg: '#F5F5F5', text: colors.textSecondary },
+  info: { bg: colors.infoLight, text: colors.info },
+  premium: { bg: colors.goldTint, text: colors.goldInk },
+  neutral: { bg: colors.surfaceMuted, text: colors.inkSecondary },
 };
 
 export default function Badge({ label, variant = 'primary', size = 'sm', style }: BadgeProps) {
@@ -44,7 +44,7 @@ export default function Badge({ label, variant = 'primary', size = 'sm', style }
 
 const styles = StyleSheet.create({
   badge: {
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     alignSelf: 'flex-start',

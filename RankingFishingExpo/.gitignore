@@ -45,7 +45,6 @@ web-build/
 # Tests
 coverage/
 .jest/
-__tests__/
 __snapshots__/
 
 # Build
@@ -90,3 +89,7 @@ android/gradlew
 android/gradlew.bat
 
 app-example
+
+# Playwright
+e2e/.results/
+playwright-report/

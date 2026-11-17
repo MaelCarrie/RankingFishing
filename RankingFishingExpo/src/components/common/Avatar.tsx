@@ -1,11 +1,16 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import { colors, borderRadius, typography } from '../../theme';
-import { getInitials, getAvatarColor } from '../../utils/helpers';
+import { View } from 'react-native';
+import UIAvatar from '../ui/Avatar';
+import { colors } from '../../theme';
 
+/**
+ * Ancienne API d'avatar, conservée pour les écrans existants.
+ * Rendu délégué à `ui/Avatar` : initiales sur teinte sobre, pastille étoile or
+ * pour Premium (plus d'emoji). `showBorder` ajoute un anneau de 2 pt (à l'intérieur de `size`).
+ */
 interface AvatarProps {
   username: string;
-  uri?: string;
+  uri?: string | null;
   size?: number;
   showBorder?: boolean;
   isPremium?: boolean;
@@ -13,54 +18,22 @@ interface AvatarProps {
 }
 
 export default function Avatar({ username, uri, size = 40, showBorder = false, isPremium = false, borderColor }: AvatarProps) {
-  const initials = getInitials(username);
-  const bgColor = getAvatarColor(username);
-
+  if (!showBorder) return <UIAvatar username={username} uri={uri} size={size} premium={isPremium} />;
+  const ring = borderColor ?? (isPremium ? colors.secondary : colors.primary);
   return (
-    <View style={[
-      styles.wrapper,
-      { width: size, height: size, borderRadius: size / 2 },
-      showBorder && { borderWidth: 2, borderColor: borderColor ?? (isPremium ? colors.premium : colors.primary) },
-    ]}>
-      {uri ? (
-        <Image source={{ uri }} style={[styles.image, { borderRadius: size / 2 }]} />
-      ) : (
-        <View style={[styles.placeholder, { borderRadius: size / 2, backgroundColor: bgColor }]}>
-          <Text style={[styles.initials, { fontSize: size * 0.35 }]}>{initials}</Text>
-        </View>
-      )}
-      {isPremium && (
-        <View style={styles.premiumBadge}>
-          <Text style={styles.premiumIcon}>⭐</Text>
-        </View>
-      )}
+    <View
+      style={{
+        // L'anneau reste dans l'encombrement demandé (pas de décalage de mise en page)
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 2,
+        borderColor: ring,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <UIAvatar username={username} uri={uri} size={size - 6} premium={isPremium} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { position: 'relative', overflow: 'visible' },
-  image: { width: '100%', height: '100%' },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initials: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  premiumBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.premium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumIcon: { fontSize: 8 },
-});

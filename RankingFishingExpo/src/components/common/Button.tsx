@@ -1,91 +1,67 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, borderRadius, typography, spacing } from '../../theme';
+import { TextStyle, ViewStyle } from 'react-native';
+import UIButton, { ButtonVariant } from '../ui/Button';
+import type { IoniconName } from '../ui/types';
 
+/**
+ * Ancienne API de bouton, conservée pour les écrans existants.
+ * Le rendu est délégué à la primitive `ui/Button` (fiche de pesée) :
+ * primary → filled, secondary → tonal (jamais d'or sur un bouton),
+ * outline → outline, ghost → text, danger → destructive. `lg` = `md` (48 pt).
+ */
 interface ButtonProps {
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
+  icon?: IoniconName;
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
   style?: ViewStyle;
+  /** Ignoré : la typographie des boutons est fixée par le design system. */
   textStyle?: TextStyle;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  testID?: string;
 }
+
+const VARIANT_MAP: Record<NonNullable<ButtonProps['variant']>, ButtonVariant> = {
+  primary: 'filled',
+  secondary: 'tonal',
+  outline: 'outline',
+  ghost: 'text',
+  danger: 'destructive',
+};
 
 export default function Button({
   title,
   onPress,
   variant = 'primary',
   size = 'md',
+  icon,
   loading = false,
   disabled = false,
   fullWidth = false,
   style,
-  textStyle,
+  accessibilityLabel,
+  accessibilityHint,
+  testID,
 }: ButtonProps) {
-  const isDisabled = disabled || loading;
-
   return (
-    <TouchableOpacity
-      style={[
-        styles.base,
-        styles[variant],
-        styles[`size_${size}`],
-        fullWidth && styles.fullWidth,
-        isDisabled && styles.disabled,
-        style,
-      ]}
+    <UIButton
+      title={title}
       onPress={onPress}
-      disabled={isDisabled}
-      activeOpacity={0.75}
-    >
-      {loading ? (
-        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.textOnPrimary} size="small" />
-      ) : (
-        <Text style={[styles.text, styles[`text_${variant}`], styles[`textSize_${size}`], textStyle]}>
-          {title}
-        </Text>
-      )}
-    </TouchableOpacity>
+      variant={VARIANT_MAP[variant]}
+      size={size === 'sm' ? 'sm' : 'md'}
+      icon={icon}
+      loading={loading}
+      disabled={disabled}
+      fullWidth={fullWidth}
+      style={style}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      testID={testID}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  fullWidth: { width: '100%' },
-  disabled: { opacity: 0.5 },
-
-  // Variants
-  primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.secondary },
-  outline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary },
-  ghost: { backgroundColor: 'transparent' },
-  danger: { backgroundColor: colors.error },
-
-  // Sizes
-  size_sm: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md, minHeight: 36 },
-  size_md: { paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.lg, minHeight: 46 },
-  size_lg: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl, minHeight: 54 },
-
-  // Text base
-  text: { ...typography.button },
-
-  // Text variants
-  text_primary: { color: colors.textOnPrimary },
-  text_secondary: { color: colors.textOnSecondary },
-  text_outline: { color: colors.primary },
-  text_ghost: { color: colors.primary },
-  text_danger: { color: colors.textOnPrimary },
-
-  // Text sizes
-  textSize_sm: { fontSize: 13 },
-  textSize_md: { fontSize: 15 },
-  textSize_lg: { fontSize: 17 },
-});

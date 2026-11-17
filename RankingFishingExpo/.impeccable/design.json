@@ -1,0 +1,598 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T19:56:27+00:00",
+  "title": "Design System: RankingFishing",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Nature Green",
+        "canonical": "#2E7D32",
+        "tonalRamp": [
+          "#1C301D",
+          "#2D5A2F",
+          "#3A873E",
+          "#44B74A",
+          "#72C377",
+          "#A0D0A2",
+          "#CAE1CB",
+          "#F0F5F0"
+        ]
+      },
+      "primary-dark": {
+        "role": "primary",
+        "displayName": "Deep Fir",
+        "canonical": "#1B5E20",
+        "tonalRamp": [
+          "#1A331C",
+          "#295E2D",
+          "#338E3A",
+          "#39C343",
+          "#6ACB72",
+          "#9BD59F",
+          "#C7E3C9",
+          "#EFF5EF"
+        ]
+      },
+      "primary-tint": {
+        "role": "primary",
+        "displayName": "Pale Reed",
+        "canonical": "#EDF4EC",
+        "tonalRamp": [
+          "#222C20",
+          "#3A5037",
+          "#50774B",
+          "#659F5C",
+          "#89B284",
+          "#AEC6AA",
+          "#D0DCCE",
+          "#F1F4F1"
+        ]
+      },
+      "gold": {
+        "role": "secondary",
+        "displayName": "Trophy Gold",
+        "canonical": "#F9A825",
+        "tonalRamp": [
+          "#3B2B11",
+          "#714E16",
+          "#AF7312",
+          "#F49908",
+          "#EDAE48",
+          "#E9C487",
+          "#EDDBBD",
+          "#F8F4ED"
+        ]
+      },
+      "gold-ink": {
+        "role": "secondary",
+        "displayName": "Weighed Amber",
+        "canonical": "#8A5A00",
+        "tonalRamp": [
+          "#3C2D10",
+          "#745213",
+          "#B37A0E",
+          "#FAA401",
+          "#F2B544",
+          "#ECC884",
+          "#EEDDBC",
+          "#F8F4EC"
+        ]
+      },
+      "gold-tint": {
+        "role": "secondary",
+        "displayName": "Gold Wash",
+        "canonical": "#FEF4DC",
+        "tonalRamp": [
+          "#3B2F11",
+          "#715616",
+          "#AE8113",
+          "#F3AE08",
+          "#EDBD48",
+          "#E9CC87",
+          "#EDDFBD",
+          "#F8F5ED"
+        ]
+      },
+      "medal-gold": {
+        "role": "tertiary",
+        "displayName": "Medal Gold",
+        "canonical": "#D9A21B",
+        "tonalRamp": [
+          "#382E15",
+          "#69531E",
+          "#A17C20",
+          "#DFA71D",
+          "#DFB757",
+          "#E1C98F",
+          "#E9DDC2",
+          "#F7F4EE"
+        ]
+      },
+      "medal-silver": {
+        "role": "tertiary",
+        "displayName": "Medal Silver",
+        "canonical": "#9AA3AB",
+        "tonalRamp": [
+          "#242628",
+          "#3F4448",
+          "#596168",
+          "#727E89",
+          "#939BA3",
+          "#B3B8BD",
+          "#D3D5D7",
+          "#F2F2F3"
+        ]
+      },
+      "medal-bronze": {
+        "role": "tertiary",
+        "displayName": "Medal Bronze",
+        "canonical": "#B07A4A",
+        "tonalRamp": [
+          "#2F261D",
+          "#574230",
+          "#825F3F",
+          "#B17B4B",
+          "#BE9977",
+          "#CDB7A3",
+          "#DFD5CB",
+          "#F5F2F0"
+        ]
+      },
+      "brand-navy": {
+        "role": "tertiary",
+        "displayName": "Logo Navy",
+        "canonical": "#021124",
+        "tonalRamp": [
+          "#12243A",
+          "#183E6F",
+          "#1758AA",
+          "#0E71ED",
+          "#4D92E9",
+          "#89B2E7",
+          "#BFD2EB",
+          "#EDF2F7"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Weigh-Slip Ink",
+        "canonical": "#15221A",
+        "tonalRamp": [
+          "#212B25",
+          "#384F41",
+          "#4D745C",
+          "#609B77",
+          "#86AF96",
+          "#ACC4B5",
+          "#CFDBD4",
+          "#F1F4F2"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Bank Moss",
+        "canonical": "#4E5B52",
+        "tonalRamp": [
+          "#252826",
+          "#404742",
+          "#5A675E",
+          "#74877A",
+          "#94A298",
+          "#B4BCB6",
+          "#D3D7D4",
+          "#F2F3F2"
+        ]
+      },
+      "ink-tertiary": {
+        "role": "neutral",
+        "displayName": "Faded Moss",
+        "canonical": "#646E66",
+        "tonalRamp": [
+          "#252726",
+          "#414642",
+          "#5D645E",
+          "#78847A",
+          "#979F98",
+          "#B5BAB6",
+          "#D4D6D4",
+          "#F2F3F2"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream",
+        "canonical": "#F5F5F0",
+        "tonalRamp": [
+          "#2B2B22",
+          "#4D4D3A",
+          "#717150",
+          "#979765",
+          "#ACAC89",
+          "#C2C2AE",
+          "#DADAD0",
+          "#F3F3F1"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7E7E7E",
+          "#9B9B9B",
+          "#B8B8B8",
+          "#D5D5D5",
+          "#F2F2F2"
+        ]
+      },
+      "surface-muted": {
+        "role": "neutral",
+        "displayName": "Muted Stone",
+        "canonical": "#EEEFE8",
+        "tonalRamp": [
+          "#292A22",
+          "#4A4C3B",
+          "#6B6F52",
+          "#8E9467",
+          "#A6AA8B",
+          "#BFC1AF",
+          "#D8DAD1",
+          "#F3F3F1"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#E2E4DA",
+        "tonalRamp": [
+          "#282A23",
+          "#484B3C",
+          "#686D54",
+          "#89916A",
+          "#A3A88D",
+          "#BDC0B0",
+          "#D7D9D1",
+          "#F3F3F1"
+        ]
+      },
+      "outline": {
+        "role": "neutral",
+        "displayName": "Reed Outline",
+        "canonical": "#C9CEC2",
+        "tonalRamp": [
+          "#272924",
+          "#44493E",
+          "#626A58",
+          "#808B70",
+          "#9CA491",
+          "#B9BEB2",
+          "#D6D8D2",
+          "#F2F3F2"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "#8C9589",
+        "tonalRamp": [
+          "#262725",
+          "#424641",
+          "#5E655C",
+          "#7A8477",
+          "#989F96",
+          "#B7BBB5",
+          "#D4D6D4",
+          "#F2F3F2"
+        ]
+      },
+      "error": {
+        "role": "error",
+        "displayName": "Error Red",
+        "canonical": "#C62828",
+        "tonalRamp": [
+          "#351818",
+          "#632323",
+          "#972A2A",
+          "#D02B2B",
+          "#D56161",
+          "#DB9595",
+          "#E6C4C4",
+          "#F6EEEE"
+        ]
+      },
+      "error-light": {
+        "role": "error",
+        "displayName": "Error Wash",
+        "canonical": "#FDECEA",
+        "tonalRamp": [
+          "#391814",
+          "#6B241B",
+          "#A52B1C",
+          "#E52C17",
+          "#E36253",
+          "#E3968D",
+          "#EAC5C0",
+          "#F7EEED"
+        ]
+      },
+      "warning": {
+        "role": "warning",
+        "displayName": "Warning Umber",
+        "canonical": "#A85400",
+        "tonalRamp": [
+          "#3C2610",
+          "#744313",
+          "#B3610E",
+          "#FA7E01",
+          "#F29B44",
+          "#ECB884",
+          "#EED5BC",
+          "#F8F2EC"
+        ]
+      },
+      "info": {
+        "role": "info",
+        "displayName": "Info Blue",
+        "canonical": "#1565C0",
+        "tonalRamp": [
+          "#142538",
+          "#1D416A",
+          "#1E5CA3",
+          "#1A77E2",
+          "#5596E1",
+          "#8EB5E2",
+          "#C1D4E9",
+          "#EEF2F7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Flush-left large title of root screens."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Auth and onboarding titles, logo wordmark."
+      },
+      "title-sheet": {
+        "displayName": "Sheet Title",
+        "purpose": "Sheet and hero titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Usernames, species names, stack header titles, ranking scores."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Input text and body copy."
+      },
+      "callout": {
+        "displayName": "Callout",
+        "purpose": "Descriptions, list-row titles, toasts."
+      },
+      "subhead": {
+        "displayName": "Subhead",
+        "purpose": "Chip and segment labels."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Metadata and metric labels."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Small tags such as 'Toi'."
+      },
+      "metric-large": {
+        "displayName": "Metric Large",
+        "purpose": "Hero weight in the weigh-in strip."
+      },
+      "metric-medium": {
+        "displayName": "Metric Medium",
+        "purpose": "Length and score in the weigh-in strip."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Button labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "whisper",
+        "value": "0 1px 2px rgba(21,34,26,0.04)",
+        "purpose": "Segmented-control thumb only. Android elevation 0."
+      },
+      {
+        "name": "settle",
+        "value": "0 2px 6px rgba(21,34,26,0.06)",
+        "purpose": "Defined in the theme; currently unused. Android elevation 1."
+      },
+      {
+        "name": "float",
+        "value": "0 8px 24px rgba(21,34,26,0.12)",
+        "purpose": "Toasts and anything genuinely floating. Android elevation 8."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "150ms",
+        "purpose": "Press feedback (scale 0.98)."
+      },
+      {
+        "name": "base",
+        "value": "200ms",
+        "purpose": "State changes, segmented thumb."
+      },
+      {
+        "name": "slow",
+        "value": "250ms",
+        "purpose": "Sheet entry, XP bar fill."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Entrances and press release."
+      },
+      {
+        "name": "ease-in-out",
+        "value": "cubic-bezier(0.65, 0, 0.35, 1)",
+        "purpose": "State transitions."
+      },
+      {
+        "name": "like-pop",
+        "value": "~180ms spring",
+        "purpose": "Like heart pop with light haptic on native."
+      },
+      {
+        "name": "reduce-motion",
+        "value": "useReduceMotion()",
+        "purpose": "All motion collapses to state change or crossfade."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Filled Button",
+      "kind": "button",
+      "refersTo": "button-filled",
+      "description": "The one primary action per screen.",
+      "html": "<button class=\"ds-btn-filled\">Publier la prise</button>",
+      "css": ".ds-btn-filled { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height:48px; padding:0 20px; border:none; border-radius:10px; background:#2E7D32; color:#FFFFFF; font-size:16px; font-weight:600; line-height:20px; transition:transform 150ms cubic-bezier(0.16,1,0.3,1), background 150ms; cursor:pointer; } .ds-btn-filled:hover { background:#276C2B; } .ds-btn-filled:active { background:#1B5E20; transform:scale(0.98); } .ds-btn-filled:focus-visible { outline:2px solid #1B5E20; outline-offset:2px; }"
+    },
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "Secondary action and empty-state action.",
+      "html": "<button class=\"ds-btn-tonal\">Ajouter une prise</button>",
+      "css": ".ds-btn-tonal { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height:48px; padding:0 20px; border:none; border-radius:10px; background:#EDF4EC; color:#1B5E20; font-size:16px; font-weight:600; transition:transform 150ms, background 150ms; cursor:pointer; } .ds-btn-tonal:hover, .ds-btn-tonal:active { background:#DFEBDD; } .ds-btn-tonal:active { transform:scale(0.98); } .ds-btn-tonal:focus-visible { outline:2px solid #2E7D32; outline-offset:2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Retry and recovery actions.",
+      "html": "<button class=\"ds-btn-outline\">Réessayer</button>",
+      "css": ".ds-btn-outline { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height:48px; padding:0 20px; border:1px solid #2E7D32; border-radius:10px; background:transparent; color:#2E7D32; font-size:16px; font-weight:600; transition:transform 150ms, background 150ms; cursor:pointer; } .ds-btn-outline:hover, .ds-btn-outline:active { background:#EDF4EC; } .ds-btn-outline:active { transform:scale(0.98); } .ds-btn-outline:focus-visible { outline:2px solid #1B5E20; outline-offset:2px; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Period and species filters; selection shown by check and colour.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\">7 jours</button><button class=\"ds-chip ds-chip-on\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#2E7D32\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg>Total</button></div>",
+      "css": ".ds-chips { display:flex; gap:8px; } .ds-chip { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display:inline-flex; align-items:center; gap:4px; height:36px; padding:0 12px; border:1px solid #C9CEC2; border-radius:10px; background:#FFFFFF; color:#15221A; font-size:14px; font-weight:500; cursor:pointer; transition:background 150ms; } .ds-chip:hover { background:rgba(21,34,26,0.06); } .ds-chip-on, .ds-chip-on:hover { background:#EDF4EC; border-color:#2E7D32; color:#1B5E20; font-weight:600; } .ds-chip:focus-visible { outline:2px solid #2E7D32; outline-offset:2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled field with strong edge; 2px green border on focus.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Poids</span><span class=\"ds-field-box\"><input placeholder=\"4,2\"/><span class=\"ds-field-suffix\">kg</span></span></label>",
+      "css": ".ds-field { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display:block; width:280px; } .ds-field-label { display:block; font-size:14px; font-weight:600; color:#15221A; margin-bottom:6px; } .ds-field-box { display:flex; align-items:center; min-height:52px; padding:0 15px; background:#FFFFFF; border:1px solid #8C9589; border-radius:10px; } .ds-field-box:focus-within { border:2px solid #2E7D32; padding:0 14px; } .ds-field-box input { flex:1; border:none; outline:none; background:transparent; font:inherit; font-size:16px; color:#15221A; } .ds-field-box input::placeholder { color:#646E66; } .ds-field-suffix { font-size:16px; font-weight:500; color:#4E5B52; margin-left:8px; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "nav",
+      "refersTo": "segmented-control",
+      "description": "Ranking scope switcher with sliding white thumb.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-item ds-seg-on\">Global</button><button class=\"ds-seg-item\">Région</button><button class=\"ds-seg-item\">Espèce</button><button class=\"ds-seg-item\">Amis</button></div>",
+      "css": ".ds-seg { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display:flex; width:340px; height:44px; padding:3px; background:#EEEFE8; border-radius:10px; box-sizing:border-box; } .ds-seg-item { flex:1; border:1px solid transparent; border-radius:8px; background:transparent; font-size:14px; font-weight:500; color:#4E5B52; cursor:pointer; transition:background 200ms cubic-bezier(0.65,0,0.35,1); } .ds-seg-item:hover { color:#15221A; } .ds-seg-on { background:#FFFFFF; border-color:#E2E4DA; color:#15221A; font-weight:600; box-shadow:0 1px 2px rgba(21,34,26,0.04); } .ds-seg-item:focus-visible { outline:2px solid #2E7D32; outline-offset:1px; }"
+    },
+    {
+      "name": "Capture Sheet with Weigh-In Strip",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "Signature: white hairline sheet, numbers as heroes, score in gold ink.",
+      "html": "<div class=\"ds-sheet\"><div class=\"ds-strip\"><div class=\"ds-m ds-m-hero\"><div><b>26,4</b><small>kg</small></div><span>Poids</span></div><div class=\"ds-m\"><div><b>112</b><small>cm</small></div><span>Taille</span></div><div class=\"ds-m ds-m-gold\"><div><b>269</b><small>pts</small></div><span>Score</span></div></div></div>",
+      "css": ".ds-sheet { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width:340px; padding:16px; background:#FFFFFF; border:1px solid #E2E4DA; border-radius:14px; } .ds-strip { display:flex; align-items:flex-end; padding:12px 0; border-top:1px solid #E2E4DA; border-bottom:1px solid #E2E4DA; } .ds-m { flex:1; padding-left:12px; border-left:1px solid #E2E4DA; font-variant-numeric:tabular-nums; } .ds-m-hero { flex:1.3; padding-left:0; border-left:none; } .ds-m b { font-size:20px; font-weight:600; line-height:24px; color:#15221A; } .ds-m-hero b { font-size:28px; font-weight:700; line-height:32px; letter-spacing:-0.3px; } .ds-m-gold b { color:#8A5A00; } .ds-m small { font-size:14px; font-weight:500; color:#4E5B52; margin-left:3px; } .ds-m span { display:block; font-size:13px; color:#4E5B52; margin-top:2px; }"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-bar",
+      "description": "White bar, hairline top, centred 52pt green add square.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab ds-tab-on\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"#2E7D32\"><path d=\"M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z\"/></svg>Accueil</a><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#4E5B52\" stroke-width=\"1.5\"><path d=\"M7 4h10v5a5 5 0 01-10 0zM12 14v4M8 20h8M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3\"/></svg>Classement</a><span class=\"ds-tab-add\"><svg width=\"30\" height=\"30\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#FFFFFF\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg></span><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#4E5B52\" stroke-width=\"1.5\"><path d=\"M4 5h12v9H8l-4 3z\"/></svg>Messages</a><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#4E5B52\" stroke-width=\"1.5\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6\"/></svg>Profil</a></nav>",
+      "css": ".ds-tabs { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display:flex; align-items:center; width:390px; height:68px; background:#FFFFFF; border-top:1px solid #E2E4DA; } .ds-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px; line-height:14px; font-weight:600; color:#4E5B52; cursor:pointer; } .ds-tab:hover { color:#15221A; } .ds-tab-on { color:#2E7D32; } .ds-tab-add { display:flex; align-items:center; justify-content:center; width:52px; height:52px; margin:0 8px; border-radius:14px; background:#2E7D32; cursor:pointer; transition:transform 150ms, background 150ms; } .ds-tab-add:hover { background:#276C2B; } .ds-tab-add:active { background:#1B5E20; transform:scale(0.96); }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Dark ink snackbar with pale-green action.",
+      "html": "<div class=\"ds-toast\"><span>Prise publiée</span><button>Voir</button></div>",
+      "css": ".ds-toast { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display:flex; align-items:center; width:340px; padding:4px 4px 4px 16px; background:#15221A; color:#FFFFFF; border-radius:10px; box-shadow:0 8px 24px rgba(21,34,26,0.12); font-size:15px; } .ds-toast span { flex:1; padding:8px 0; } .ds-toast button { min-height:44px; padding:0 12px; border:none; background:transparent; color:#9CD8A0; font:inherit; font-weight:600; border-radius:8px; cursor:pointer; } .ds-toast button:hover { background:rgba(255,255,255,0.08); } .ds-toast button:focus-visible { outline:2px solid #9CD8A0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Weigh-In Slip",
+    "overview": "Every screen reads like a clean fiche de pesée. Weight, length, score and rank are the heroes, set large in tabular figures with the unit smaller and in secondary ink. The chrome steps back. The ground is cream, content sits on white sheets edged with a 1px hairline, and there is almost no shadow. Depth comes from the hairline and the cream/white contrast, not from lift.\n\nThe palette has a strict division of labour. Green means act, select or validate. Gold means achievement: score, rank movement, XP, badges, Premium. Everything else is a deep green-black ink on cream and white. The type is the platform's own (SF on iOS, Roboto on Android) on a tight ~1.2 scale. Large titles sit flush left at the top of root screens, and icons are Ionicons outline. Built for outdoor, one-handed, sunlit use: every target is 44pt or more, text contrast is measured against WCAG, and nothing is carried by colour alone (selected chips carry a check, rank deltas carry an arrow).\n\nThe world rejects the default social-feed look: rounded shadowed cards, emoji as icons, coloured chips everywhere, a floating green blob.",
+    "keyCharacteristics": [
+      "Cream ground, white hairline sheets, one level of depth",
+      "Numbers as heroes: tabular figures, small secondary-ink units, \"—\" for missing values",
+      "Green for action and selection only; gold for achievement only",
+      "Platform system type on a tight 1.2 scale with flush-left large titles",
+      "Ionicons outline at rest; species get a monogram tile, never an emoji",
+      "44pt minimum targets; motion at 150/200/250ms, all of it honouring Reduce Motion"
+    ],
+    "rules": [
+      {
+        "name": "The Gold Is Earned Rule",
+        "body": "Gold appears only on achievement: score, rank movement, XP, badges, Premium. It never fills or tints a plain button, including on the Premium screen, whose call to action is a green filled button.",
+        "section": "colors"
+      },
+      {
+        "name": "The Gold Ink Rule",
+        "body": "Gold text is always gold-ink, and gold (#F9A825) is reserved for fills, edges and dots. The contract wrote \"score in gold #F9A825\". The build sets it in gold-ink for contrast, and the build is right.",
+        "section": "colors"
+      },
+      {
+        "name": "The Green Means Go Rule",
+        "body": "Green marks the thing you can press, the thing that is selected, or the thing that is validated. It is never decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Every number (weight, length, score, rank, XP, counts) uses tabular-nums and is formatted French-style (decimal comma, thin-space thousands). Units follow at a smaller size, weight 500, in ink-secondary.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence-Case Rule",
+        "body": "Headers and group labels are plain sentence case. No small uppercase label sits above a title.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Depth Rule",
+        "body": "A sheet never sits inside a sheet. Hierarchy inside a sheet uses hairlines and spacing.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline Not Shadow Rule",
+        "body": "If a surface needs separating, give it a 1px hairline edge, not a shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** set every figure in tabular-nums with a smaller ink-secondary unit, and show \"—\" for a missing value.",
+      "**Do** put content on white sheets with a 1px hairline (#E2E4DA) and radius 14, on the cream ground.",
+      "**Do** write gold text in gold-ink (#8A5A00). Keep #F9A825 for fills, edges and dots.",
+      "**Do** keep every target at 44pt or more, adding hitSlop to smaller visuals.",
+      "**Do** use Ionicons outline for icons, and a SpeciesMark monogram or the fish glyph for species.",
+      "**Do** use 150ms for press feedback, 200ms for state changes and 250ms for sheet entry, and honour Reduce Motion."
+    ],
+    "donts": [
+      "**Don't** put gold on a plain button or use it for anything that is not an achievement.",
+      "**Don't** use emoji as icons (badges stored with an emoji render through their category icon).",
+      "**Don't** nest a sheet inside a sheet, or add shadow to separate surfaces; use a hairline.",
+      "**Don't** put a small uppercase label above a title.",
+      "**Don't** use gradient text, glassmorphism or a coloured left border on cards.",
+      "**Don't** use more than one filled green button per screen."
+    ]
+  }
+}

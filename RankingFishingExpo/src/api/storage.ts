@@ -1,11 +1,15 @@
 import { File } from 'expo-file-system/next';
-import { supabase } from '../config/supabase';
+import { supabase, USE_MOCK_DATA } from '../config/supabase';
+
+// En mode mock, aucun upload : on réutilise directement l'URI locale de la photo.
 
 export async function uploadCapturePhoto(
   userId: string,
   captureId: string,
   localUri: string
 ): Promise<string> {
+  if (USE_MOCK_DATA) return localUri;
+
   const file = new File(localUri);
   const bytes = await file.bytes();
 
@@ -22,6 +26,8 @@ export async function uploadCapturePhoto(
 }
 
 export async function uploadAvatar(userId: string, localUri: string): Promise<string> {
+  if (USE_MOCK_DATA) return localUri;
+
   const file = new File(localUri);
   const bytes = await file.bytes();
 

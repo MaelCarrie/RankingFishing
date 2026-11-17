@@ -40,6 +40,7 @@ export interface User {
   avatar?: string;
   bio?: string;
   location?: string;
+  region?: string;
   isPremium: boolean;
   xp: number;
   level: number;
@@ -92,12 +93,23 @@ export interface Capture {
   locationName?: string;
   weather?: WeatherCondition;
   publishedAt: string; // ISO date string
+  caughtAt?: string; // ISO date string — date/heure réelle de la prise (colonne caught_at)
   isDraft: boolean;
   validationScore: number; // 0-100
   score: number; // calculated ranking score
   likes: number;
   comments: number;
   isLiked: boolean;
+}
+
+export interface Comment {
+  id: string;
+  captureId: string;
+  userId: string;
+  username: string;
+  userAvatar?: string;
+  content: string;
+  createdAt: string; // ISO date string
 }
 
 export interface NewCaptureForm {
@@ -108,9 +120,10 @@ export interface NewCaptureForm {
   photos: string[];
   description: string;
   weather: WeatherCondition | null;
-  publishedAt: string;
+  publishedAt: string; // utilisé comme date/heure de la prise (caught_at)
   isDraft: boolean;
   location?: GeoPoint;
+  locationName?: string; // Premium : lieu lisible issu du géocodage inverse
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
@@ -130,6 +143,11 @@ export interface Badge {
   target: string; // e.g. "10 captures"
   unlockedAt?: string; // ISO date string
   xpReward: number;
+  // Critère de déblocage (table badges) et valeur courante (user_badges.current_value)
+  metric?: string; // 'total_captures' | 'species_weight' | 'global_rank' | 'validations' | 'seasonal_captures'
+  targetValue?: number;
+  currentValue?: number | null;
+  targetSpecies?: string;
 }
 
 // ─── Rankings ─────────────────────────────────────────────────────────────────
@@ -145,7 +163,15 @@ export interface RankingEntry {
   score: number;
   totalCaptures: number;
   topSpecies?: string;
+  region?: string;
+  species?: string;
   isCurrentUser?: boolean;
+  level?: number;
+  /**
+   * Rang précédent, s'il est connu. La vue `rankings` de production ne le fournit
+   * pas encore (RankRow n'affiche alors rien) ; seul le mock le dérive.
+   */
+  previousRank?: number | null;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -163,6 +189,26 @@ export interface Message {
   captureRef?: CaptureRef;
   sentAt: string; // ISO date string
   isRead: boolean;
+  // Infos d'affichage d'une capture partagée (type = 'capture'), en plus de captureRef
+  capturePreview?: SharedCapturePreview;
+  // État local d'envoi (optimistic UI). Absent = message confirmé par le serveur.
+  status?: MessageStatus;
+}
+
+export type MessageStatus = 'sending' | 'sent' | 'failed';
+
+export interface SharedCapturePreview {
+  photoUrl?: string;
+  speciesIcon?: string;
+  score?: number;
+  ownerId?: string;
+  ownerUsername?: string;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  username: string;
+  avatar?: string;
 }
 
 export interface Conversation {
@@ -175,6 +221,14 @@ export interface Conversation {
   lastMessage: Message;
   unreadCount: number;
   updatedAt: string; // ISO date string
+  // Participants résolus (id, pseudo, avatar), utilisateur courant inclus
+  participants?: ConversationParticipant[];
+  // Conversation 1:1 : l'autre pêcheur
+  otherParticipant?: ConversationParticipant;
+  // Nom et avatar à afficher (nom du groupe ou pseudo de l'autre participant)
+  displayName?: string;
+  displayAvatar?: string;
+  lastReadAt?: string; // ISO date string
 }
 
 // ─── Redux State ──────────────────────────────────────────────────────────────
@@ -200,8 +254,19 @@ export interface RankingsState {
   currentUserRank: RankingEntry | null;
   type: RankingType;
   period: RankingPeriod;
+  selectedSpecies: string; // species_id pour le classement par espèce
   isLoading: boolean;
   error: string | null;
+  // Taille max de la liste affichée (top 100 mondial, top 50 régional…)
+  limit?: number;
+  // true si la ligne de l'utilisateur fait partie de `entries` (sinon épinglée en bas)
+  isCurrentUserInList?: boolean;
+  // Région utilisée pour le classement régional en cours (null = non renseignée)
+  region?: string | null;
+  // Rafraîchissement manuel (pull-to-refresh) en cours
+  isRefreshing?: boolean;
+  // Identifiant de la dernière requête : ignore les réponses obsolètes
+  requestId?: string;
 }
 
 export interface ChatState {
@@ -210,10 +275,17 @@ export interface ChatState {
   messages: Record<string, Message[]>;
   isLoading: boolean;
   error: string | null;
+  // Chargement / erreur des messages, par conversation
+  messagesLoading?: Record<string, boolean>;
+  messagesError?: Record<string, string | null>;
 }
 
 export interface BadgesState {
   badges: Badge[];
   isLoading: boolean;
   error: string | null;
+  // Badges débloqués par la dernière publication, en attente d'affichage (modal)
+  newlyUnlocked?: Badge[];
+  // Ids débloqués pendant la session (mise en avant « Nouveau » dans BadgesScreen)
+  recentlyUnlockedIds?: string[];
 }

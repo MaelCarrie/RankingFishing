@@ -27,18 +27,22 @@ RankingFishing est une application communautaire pour les passionnés de pêche,
 - ✨ Fonctionnalités exclusives à venir.
 
 ## 🛠 Technologies utilisées
-- **📱 Application mobile** : React Native avec Expo
-- **⚙️ Backend** : Firebase (Firestore, Auth, Storage)
-- **🗄 Base de données** : Firestore (NoSQL)
-- **🔐 Authentification** : Firebase Auth
+- **📱 Application mobile** : React Native avec Expo (SDK 54), TypeScript, Redux Toolkit
+- **⚙️ Backend** : Supabase (Auth, PostgreSQL, Storage, Realtime, Edge Functions)
+- **🗄 Base de données** : PostgreSQL (Supabase), avec Row Level Security
+- **🔐 Authentification** : Supabase Auth (email et mot de passe)
+- **🧪 Tests** : jest (unitaires) et Playwright (E2E)
 
 ## 📥 Installation et exécution
 ```bash
-🚀 git clone https://github.com/tonrepo/RankingFishing.git
-📂 cd RankingFishing
-📦 npm install
-▶️ expo start
+git clone https://github.com/MaelCarrie/RankingFishing.git
+cd RankingFishing/RankingFishingExpo
+npm install --legacy-peer-deps
+npx expo start
 ```
+
+Pour essayer l'app sans backend : `npm run web:mock`, puis connexion avec `demo@rankingfishing.app` / `demo1234`.
+Le détail (mode mock, tests, structure) est dans [`RankingFishingExpo/README.md`](RankingFishingExpo/README.md), la base de données dans [`SUPABASE.md`](SUPABASE.md) et l'état d'avancement dans [`STATE.md`](STATE.md).
 
 ## 🤝 Contribuer
 Toute aide est la bienvenue ! N'hésitez pas à forker le projet et proposer des pull requests. 🚀

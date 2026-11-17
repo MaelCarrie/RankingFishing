@@ -1,0 +1,6 @@
+{
+  "source": "Documentations/Logo/logo.png (logo du projet RankingFishing, 1888x1888, fond marine)",
+  "method": "Redimensionnement Lanczos (Pillow). icon/logo-tile : image entiere. adaptive-icon (70 %) et splash (42 %) : logo centre sur le marine du fond (#021124, moyenne des bords), bords fondus pour une jonction invisible.",
+  "note": "logo_without_bg.svg n'est pas utilise : c'est une vectorisation automatique (361 chemins semi-transparents, contours bruites, oeil inverse).",
+  "files": ["logo-tile.png", "logo-tile@2x.png", "logo-tile@3x.png", "icon.png", "adaptive-icon.png", "splash.png"]
+}

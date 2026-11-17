@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
 import { MainStackParamList } from '../../navigation/types';
 import { colors, spacing, typography } from '../../theme';
 import { fetchFollowers, fetchFollowing } from '../../api/follows';
 import { UserSearchResult } from '../../api/users';
 import UserRow from '../../components/social/UserRow';
+import { EmptyState, ErrorState, Skeleton } from '../../components/ui';
 
 type Route = RouteProp<MainStackParamList, 'FollowList'>;
 type Nav = NativeStackNavigationProp<MainStackParamList>;
@@ -40,8 +40,16 @@ export default function FollowListScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={styles.list} accessible accessibilityLabel="Chargement" accessibilityState={{ busy: true }}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <View key={i} style={styles.skeletonRow}>
+            <Skeleton width={44} height={44} radius={22} />
+            <View style={styles.skeletonText}>
+              <Skeleton width="45%" height={14} />
+              <Skeleton width="70%" height={12} style={styles.skeletonGap} />
+            </View>
+          </View>
+        ))}
       </View>
     );
   }
@@ -49,8 +57,11 @@ export default function FollowListScreen() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={36} color={colors.error} />
-        <Text style={styles.emptyText}>{error}</Text>
+        <ErrorState
+          title={type === 'followers' ? 'Abonnés indisponibles' : 'Abonnements indisponibles'}
+          message={`${error}\nVérifie ta connexion puis réessaie.`}
+          onRetry={() => { setLoading(true); load(); }}
+        />
       </View>
     );
   }
@@ -58,10 +69,15 @@ export default function FollowListScreen() {
   if (users.length === 0) {
     return (
       <View style={styles.center}>
-        <Ionicons name="people-outline" size={48} color={colors.textDisabled} />
-        <Text style={styles.emptyText}>
-          {type === 'followers' ? 'Aucun abonné pour l\'instant' : 'Aucun abonnement pour l\'instant'}
-        </Text>
+        <EmptyState
+          icon="people-outline"
+          title={type === 'followers' ? 'Aucun abonné pour l\'instant' : 'Aucun abonnement pour l\'instant'}
+          message={type === 'followers'
+            ? 'Publie tes prises : les pêcheurs qui les aiment pourront te suivre.'
+            : 'Cherche des pêcheurs et suis-les pour voir leurs prises dans ton fil.'}
+          actionLabel={type === 'following' ? 'Trouver des pêcheurs' : undefined}
+          onAction={type === 'following' ? () => navigation.navigate('UserSearch') : undefined}
+        />
       </View>
     );
   }
@@ -71,6 +87,11 @@ export default function FollowListScreen() {
       style={styles.list}
       data={users}
       keyExtractor={(u) => u.id}
+      ListHeaderComponent={
+        <Text style={styles.count}>
+          {users.length} {type === 'followers' ? `abonné${users.length > 1 ? 's' : ''}` : `abonnement${users.length > 1 ? 's' : ''}`}
+        </Text>
+      }
       renderItem={({ item }) => (
         <UserRow
           user={item}
@@ -84,6 +105,26 @@ export default function FollowListScreen() {
 
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.lg, backgroundColor: colors.background },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  center: { flex: 1, justifyContent: 'center', backgroundColor: colors.background },
+  count: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.inkSecondary,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    fontVariant: ['tabular-nums'],
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.ms,
+    minHeight: 64,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
+  },
+  skeletonText: { flex: 1 },
+  skeletonGap: { marginTop: spacing.sm },
 });

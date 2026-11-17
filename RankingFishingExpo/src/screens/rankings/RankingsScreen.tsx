@@ -1,141 +1,318 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView
+  View, Text, FlatList, StyleSheet, Pressable, ScrollView, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { fetchRankings, setType, setPeriod } from '../../store/slices/rankingsSlice';
+import { fetchRankings, setType, setPeriod, setSpecies } from '../../store/slices/rankingsSlice';
 import { RankingEntry, RankingType, RankingPeriod } from '../../store/types';
-import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
-import Avatar from '../../components/common/Avatar';
-import { formatScore, formatRank } from '../../utils/formatting';
+import { colors, spacing, typography, borderRadius, hitSlop } from '../../theme';
+import { FISH_SPECIES } from '../../config/constants';
+import { SegmentedControl, Chip, EmptyState, ErrorState, Skeleton, Button } from '../../components/ui';
+import type { SegmentOption } from '../../components/ui';
+import RankRow from '../../components/rankings/RankRow';
+import Podium from '../../components/rankings/Podium';
 
-const TYPE_TABS: { key: RankingType; label: string }[] = [
-  { key: 'global', label: 'Global' },
-  { key: 'regional', label: 'Régional' },
-  { key: 'species', label: 'Par espèce' },
-  { key: 'friends', label: 'Amis' },
+const TYPE_OPTIONS: SegmentOption<RankingType>[] = [
+  { value: 'global', label: 'Global', accessibilityLabel: 'Classement global' },
+  { value: 'regional', label: 'Région', accessibilityLabel: 'Classement de ma région' },
+  { value: 'species', label: 'Espèce', accessibilityLabel: 'Classement par espèce' },
+  { value: 'friends', label: 'Amis', accessibilityLabel: 'Classement entre amis' },
 ];
 
-const PERIOD_TABS: { key: RankingPeriod; label: string }[] = [
-  { key: 'day', label: 'Jour' },
-  { key: 'week', label: 'Semaine' },
-  { key: 'month', label: 'Mois' },
-  { key: 'year', label: 'Année' },
-  { key: 'alltime', label: 'All-time' },
+// Période : filtre secondaire, en puces (le type reste le contrôle principal)
+const PERIOD_OPTIONS: { value: RankingPeriod; label: string }[] = [
+  { value: 'day', label: '24 h' },
+  { value: 'week', label: '7 jours' },
+  { value: 'month', label: '30 jours' },
+  { value: 'year', label: '1 an' },
+  { value: 'alltime', label: 'Total' },
 ];
 
-const PODIUM_COLORS = ['#F9A825', '#C0C0C0', '#CD7F32'];
-const PODIUM_SIZES = [72, 60, 54];
+// Les périodes sont des fenêtres glissantes (Edge Function recalculate-rankings).
+const PERIOD_PHRASE: Record<RankingPeriod, string> = {
+  day: 'sur les dernières 24 h',
+  week: 'sur les 7 derniers jours',
+  month: 'sur les 30 derniers jours',
+  year: 'sur les 12 derniers mois',
+  alltime: 'depuis toujours',
+};
 
-function PodiumEntry({ entry, position }: { entry: RankingEntry; position: number }) {
-  const color = PODIUM_COLORS[position];
-  const size = PODIUM_SIZES[position];
+// ─── Chargement ───────────────────────────────────────────────────────────────
+
+function RankingSkeleton() {
   return (
-    <View style={[styles.podiumEntry, position === 0 && styles.podiumFirst]}>
-      <Avatar username={entry.username} uri={entry.avatar} size={size} showBorder borderColor={color} />
-      <View style={[styles.podiumMedal, { backgroundColor: color }]}>
-        <Text style={styles.podiumRank}>{position + 1}</Text>
-      </View>
-      <Text style={styles.podiumName} numberOfLines={1}>{entry.username}</Text>
-      <Text style={styles.podiumScore}>{formatScore(entry.score)}</Text>
+    <View
+      style={styles.skeleton}
+      testID="ranking-loading"
+      accessible
+      accessibilityLabel="Chargement du classement"
+      accessibilityState={{ busy: true }}
+    >
+      {Array.from({ length: 8 }, (_, i) => (
+        <View key={i} style={styles.skeletonRow}>
+          <Skeleton width={24} height={14} />
+          <Skeleton width={36} height={36} radius={18} />
+          <View style={styles.skeletonText}>
+            <Skeleton width="55%" height={12} />
+            <Skeleton width="35%" height={10} style={styles.skeletonGap} />
+          </View>
+          <Skeleton width={64} height={14} />
+        </View>
+      ))}
     </View>
   );
 }
 
-function RankRow({ entry }: { entry: RankingEntry }) {
-  const isMe = entry.isCurrentUser;
-  return (
-    <View style={[styles.rankRow, isMe && styles.rankRowMe]}>
-      <View style={styles.rankNum}>
-        <Text style={[styles.rankNumText, isMe && styles.rankNumMe]}>{formatRank(entry.rank)}</Text>
-      </View>
-      <Avatar username={entry.username} uri={entry.avatar} size={36} />
-      <View style={styles.rankInfo}>
-        <Text style={[styles.rankUsername, isMe && styles.rankUsernameMe]}>{entry.username}</Text>
-        <Text style={styles.rankSub}>{entry.totalCaptures} captures · {entry.topSpecies}</Text>
-      </View>
-      <Text style={[styles.rankScore, isMe && styles.rankScoreMe]}>{formatScore(entry.score)}</Text>
-    </View>
-  );
-}
+// ─── Écran ────────────────────────────────────────────────────────────────────
 
 export default function RankingsScreen() {
   const dispatch = useAppDispatch();
-  const { entries, currentUserRank, type, period, isLoading } = useAppSelector((s) => s.rankings);
+  const navigation = useNavigation<any>();
+  const {
+    entries, currentUserRank, type, period, selectedSpecies,
+    isLoading, isRefreshing, error, limit,
+  } = useAppSelector((s) => s.rankings);
+  const userId = useAppSelector((s) => s.auth.user?.id);
+  const userRegion = useAppSelector((s) => s.auth.user?.region);
 
+  const load = useCallback(
+    (refresh = false) => dispatch(fetchRankings({ type, period, refresh })),
+    [dispatch, type, period]
+  );
+
+  // Recharge à chaque changement d'onglet, d'espèce, d'utilisateur ou de région
   useEffect(() => {
-    dispatch(fetchRankings({ type, period }));
-  }, [dispatch, type, period]);
+    load(false);
+  }, [load, selectedSpecies, userId, userRegion]);
 
-  const top3 = entries.filter((e) => !e.isCurrentUser).slice(0, 3);
-  const rest = entries.filter((e) => !e.isCurrentUser).slice(3);
+  const goToMyProfile = () => navigation.navigate('Profile', { screen: 'ProfileMain' });
+  // La région se choisit dans « Modifier le profil »
+  const goToEditProfile = () => (navigation.getParent?.() ?? navigation).navigate('EditProfile');
+  const goToSearch = () => (navigation.getParent?.() ?? navigation).navigate('UserSearch');
+  const goToNewCapture = () => navigation.navigate('NewCapture');
+  const openEntry = (e: RankingEntry) => {
+    if (e.isCurrentUser) goToMyProfile();
+    else (navigation.getParent?.() ?? navigation).navigate('UserProfile', { userId: e.userId });
+  };
+
+  const speciesName = FISH_SPECIES.find((s) => s.id === selectedSpecies)?.nameFr ?? selectedSpecies;
+  const needsRegion = type === 'regional' && !userRegion;
+
+  const hasPodium = entries.length >= 3;
+  const top3 = hasPodium ? entries.slice(0, 3) : [];
+  const rest = hasPodium ? entries.slice(3) : entries;
+
+  // Libellé de contexte sous les onglets
+  let context = '';
+  if (type === 'global') context = `Top ${limit ?? 100} mondial · ${PERIOD_PHRASE[period]}`;
+  else if (type === 'regional') context = userRegion ? `Top ${limit ?? 50} · ${userRegion}` : 'Classement de ta région';
+  else if (type === 'species') context = `Top ${limit ?? 50} · ${speciesName} · ${PERIOD_PHRASE[period]}`;
+  else context = `Toi et les pêcheurs que tu suis · ${PERIOD_PHRASE[period]}`;
+
+  const renderEmpty = () => {
+    if (hasPodium) return null;
+    if (type === 'friends') {
+      return (
+        <EmptyState
+          icon="people-outline"
+          title="Pas encore de classement entre amis"
+          message={`Personne dans ton cercle n'a publié de capture ${PERIOD_PHRASE[period]}. Suis d'autres pêcheurs pour te comparer à eux.`}
+          actionLabel="Trouver des pêcheurs"
+          onAction={goToSearch}
+        />
+      );
+    }
+    return (
+      <EmptyState
+        icon={type === 'species' ? 'fish-outline' : type === 'regional' ? 'location-outline' : 'trophy-outline'}
+        title="Aucune capture classée"
+        message={
+          type === 'species'
+            ? `Aucune capture de ${speciesName.toLowerCase()} ${PERIOD_PHRASE[period]}. Publie la première.`
+            : type === 'regional'
+              ? `Aucune capture en ${userRegion} ${PERIOD_PHRASE[period]}. Publie la première.`
+              : `Aucune capture ${PERIOD_PHRASE[period]}. Publie la première.`
+        }
+        actionLabel="Publier une capture"
+        onAction={goToNewCapture}
+      />
+    );
+  };
+
+  const renderBody = () => {
+    if (needsRegion) {
+      return (
+        <View style={styles.center} testID="ranking-region-empty">
+          <EmptyState
+            icon="location-outline"
+            title="Choisis ta région"
+            message="Indique ta région dans ton profil pour te mesurer aux pêcheurs près de chez toi."
+            actionLabel="Choisir ma région"
+            onAction={goToEditProfile}
+          />
+        </View>
+      );
+    }
+
+    if (isLoading && entries.length === 0) return <RankingSkeleton />;
+
+    if (error && entries.length === 0) {
+      return (
+        <View style={styles.center} testID="ranking-error">
+          <ErrorState
+            title="Impossible de charger le classement"
+            message={`${error}\nVérifie ta connexion puis réessaie.`}
+            onRetry={() => load(false)}
+          />
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        style={styles.flatList}
+        data={rest}
+        keyExtractor={(e) => e.userId}
+        renderItem={({ item, index }) => (
+          <RankRow entry={item} onPress={openEntry} first={index === 0} last={index === rest.length - 1} />
+        )}
+        refreshControl={
+          <RefreshControl
+            refreshing={!!isRefreshing}
+            onRefresh={() => load(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        ListHeaderComponent={
+          <>
+            {error ? (
+              <View style={styles.inlineError} accessibilityLiveRegion="polite">
+                <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+                <Text style={styles.inlineErrorText}>Mise à jour impossible. Tire pour réessayer.</Text>
+              </View>
+            ) : null}
+            <Podium top3={top3} onPress={openEntry} />
+          </>
+        }
+        ListEmptyComponent={<View testID="ranking-empty">{renderEmpty()}</View>}
+        ListFooterComponent={
+          <>
+            {type === 'friends' && entries.length === 1 && entries[0].isCurrentUser ? (
+              <View style={styles.hintCard}>
+                <Ionicons name="people-outline" size={20} color={colors.primary} />
+                <Text style={styles.hintText}>Suis d'autres pêcheurs pour comparer tes scores aux leurs.</Text>
+                <Button title="Trouver des pêcheurs" onPress={goToSearch} variant="tonal" size="sm" />
+              </View>
+            ) : null}
+            {limit && entries.length >= limit ? (
+              <Text style={styles.limitNote}>Seuls les {limit} premiers sont affichés.</Text>
+            ) : null}
+          </>
+        }
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+      />
+    );
+  };
+
+  // Position de l'utilisateur toujours épinglée en bas (style Strava, issue #28),
+  // qu'elle soit dans la liste affichée ou non.
+  const showPinned = !needsRegion && !isLoading && !error && !!currentUserRank;
+  const showNotRanked =
+    !needsRegion && !isLoading && !error && !currentUserRank && entries.length > 0 && !!userId;
 
   return (
     <View style={styles.container}>
-      {/* Type tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeTabs} contentContainerStyle={styles.typeTabsContent}>
-        {TYPE_TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.typeTab, type === t.key && styles.typeTabActive]}
-            onPress={() => dispatch(setType(t.key))}
-          >
-            <Text style={[styles.typeTabText, type === t.key && styles.typeTabTextActive]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Period tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodTabs} contentContainerStyle={styles.typeTabsContent}>
-        {PERIOD_TABS.map((p) => (
-          <TouchableOpacity
-            key={p.key}
-            style={[styles.periodTab, period === p.key && styles.periodTabActive]}
-            onPress={() => dispatch(setPeriod(p.key))}
-          >
-            <Text style={[styles.periodTabText, period === p.key && styles.periodTabTextActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {isLoading ? (
-        <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>
-      ) : (
-        <FlatList
-          data={rest}
-          keyExtractor={(e) => e.userId}
-          renderItem={({ item }) => <RankRow entry={item} />}
-          ListHeaderComponent={
-            <>
-              {/* Podium */}
-              {top3.length === 3 && (
-                <View style={styles.podium}>
-                  <PodiumEntry entry={top3[1]} position={1} />
-                  <PodiumEntry entry={top3[0]} position={0} />
-                  <PodiumEntry entry={top3[2]} position={2} />
-                </View>
-              )}
-
-              <Text style={styles.listTitle}>Classement complet</Text>
-            </>
-          }
-          ListFooterComponent={
-            currentUserRank ? (
-              <View style={styles.myRankBanner}>
-                <Ionicons name="person-circle-outline" size={18} color={colors.primary} />
-                <Text style={styles.myRankText}>
-                  Mon rang : <Text style={styles.myRankValue}>{formatRank(currentUserRank.rank)}</Text>
-                  {'  ·  '}
-                  <Text style={styles.myRankValue}>{formatScore(currentUserRank.score)}</Text>
-                </Text>
-              </View>
-            ) : null
-          }
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
+      <View style={styles.controls}>
+        <SegmentedControl
+          options={TYPE_OPTIONS}
+          value={type}
+          onChange={(v) => dispatch(setType(v))}
+          accessibilityLabel="Type de classement"
+          testID="ranking-type"
         />
+      </View>
+
+      {/* Période (et espèce) : puces horizontales sous le contrôle principal */}
+      <View style={styles.filters}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContent}
+          accessibilityLabel="Période du classement"
+          testID="ranking-period"
+        >
+          {PERIOD_OPTIONS.map((p) => (
+            <Chip
+              key={p.value}
+              label={p.label}
+              selected={period === p.value}
+              onPress={() => dispatch(setPeriod(p.value))}
+              testID={`ranking-period-${p.value}`}
+            />
+          ))}
+        </ScrollView>
+
+        {type === 'species' && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.chipsContent, styles.speciesContent]}
+            accessibilityLabel="Espèce"
+          >
+            {FISH_SPECIES.map((sp) => (
+              <Chip
+                key={sp.id}
+                label={sp.nameFr}
+                selected={selectedSpecies === sp.id}
+                onPress={() => dispatch(setSpecies(sp.id))}
+                testID={`ranking-species-${sp.id}`}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      {/* Contexte */}
+      {!needsRegion && (
+        <View style={styles.contextRow}>
+          <Text style={styles.contextText} numberOfLines={1}>{context}</Text>
+          {type === 'regional' && (
+            <Pressable
+              onPress={goToEditProfile}
+              style={({ pressed }) => [styles.contextLink, pressed && styles.pressed]}
+              hitSlop={hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel="Changer de région"
+              testID="ranking-region-change"
+            >
+              <Text style={styles.contextLinkText}>Changer</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      <View style={styles.body}>{renderBody()}</View>
+
+      {showPinned && currentUserRank && (
+        <View style={styles.pinned} testID="ranking-pinned-me">
+          <RankRow entry={currentUserRank} pinned onPress={openEntry} testID="ranking-pinned-row" />
+        </View>
+      )}
+
+      {showNotRanked && (
+        <View style={styles.pinned} testID="ranking-pinned-unranked">
+          <View style={styles.unranked}>
+            <Ionicons name="fish-outline" size={20} color={colors.primary} />
+            <Text style={styles.unrankedText}>
+              Tu n'es pas encore classé {PERIOD_PHRASE[period]}.
+            </Text>
+            <Button title="Publier une prise" onPress={goToNewCapture} size="sm" variant="tonal" />
+          </View>
+        </View>
       )}
     </View>
   );
@@ -143,117 +320,93 @@ export default function RankingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { paddingBottom: spacing.xxl },
+  body: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center' },
+  flatList: { flex: 1 },
+  list: { paddingBottom: spacing.lg, flexGrow: 1 },
 
-  // Type tabs
-  typeTabs: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  typeTabsContent: { paddingHorizontal: spacing.md, gap: spacing.xs },
-  typeTab: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    marginVertical: spacing.xs,
-  },
-  typeTabActive: { backgroundColor: colors.primary },
-  typeTabText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
-  typeTabTextActive: { color: '#fff' },
-
-  // Period tabs
-  periodTabs: { maxHeight: 40, backgroundColor: colors.surface },
-  periodTab: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    marginVertical: 4,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  periodTabActive: { borderColor: colors.secondary, backgroundColor: colors.premiumBg },
-  periodTabText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
-  periodTabTextActive: { color: colors.secondaryDark },
-
-  // Podium
-  podium: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
+  controls: {
     backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.md,
-    ...shadows.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingTop: spacing.sm,
   },
-  podiumEntry: { alignItems: 'center', flex: 1 },
-  podiumFirst: { transform: [{ translateY: -12 }] },
-  podiumMedal: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -10,
-    marginBottom: spacing.xs,
-    zIndex: 1,
+  filters: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong,
   },
-  podiumRank: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  podiumName: { ...typography.bodySmall, color: colors.textPrimary, fontWeight: '700', textAlign: 'center' },
-  podiumScore: { ...typography.caption, color: colors.secondary, fontWeight: '700' },
+  chipsContent: { paddingHorizontal: spacing.md, paddingVertical: spacing.ms, gap: spacing.sm },
+  speciesContent: { paddingTop: 0 },
+  pressed: { opacity: 0.6 },
 
-  listTitle: {
-    ...typography.h4,
-    color: colors.textSecondary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontSize: 11,
-  },
-
-  // Rank rows
-  rankRow: {
+  // Contexte
+  contextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginBottom: 6,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    minHeight: 40,
+  },
+  contextText: { ...typography.footnote, color: colors.inkSecondary, flex: 1, fontVariant: ['tabular-nums'] },
+  contextLink: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
+  contextLinkText: { ...typography.subhead, color: colors.primary, fontWeight: '600' },
+
+  limitNote: {
+    ...typography.footnote,
+    color: colors.inkSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+    fontVariant: ['tabular-nums'],
+  },
+
+  inlineError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.errorLight,
+    borderRadius: borderRadius.md,
     padding: spacing.sm,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
   },
-  rankRowMe: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceVariant,
-  },
-  rankNum: { width: 32, alignItems: 'center' },
-  rankNumText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '700' },
-  rankNumMe: { color: colors.primary },
-  rankInfo: { flex: 1 },
-  rankUsername: { ...typography.bodySmall, color: colors.textPrimary, fontWeight: '700' },
-  rankUsernameMe: { color: colors.primary },
-  rankSub: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
-  rankScore: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '700' },
-  rankScoreMe: { color: colors.secondary },
+  inlineErrorText: { ...typography.subhead, color: colors.error, flex: 1 },
 
-  myRankBanner: {
+  // Squelette
+  skeleton: { paddingTop: spacing.sm, overflow: 'hidden' },
+  skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: borderRadius.lg,
+    minHeight: 56,
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.primary + '40',
+    paddingHorizontal: spacing.ms,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
   },
-  myRankText: { ...typography.body, color: colors.textSecondary },
-  myRankValue: { color: colors.primary, fontWeight: '700' },
+  skeletonText: { flex: 1 },
+  skeletonGap: { marginTop: 6 },
+
+  hintCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.sheet,
+    backgroundColor: colors.primaryTint,
+  },
+  hintText: { ...typography.subhead, color: colors.ink, flex: 1 },
+
+  // Position épinglée
+  pinned: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    paddingHorizontal: spacing.ms,
+    paddingVertical: spacing.xs,
+  },
+  unranked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  unrankedText: { ...typography.subhead, color: colors.ink, flex: 1 },
 });

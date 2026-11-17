@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator,
+  View, Text, FlatList, StyleSheet, ActivityIndicator,
   Alert, RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { MainStackParamList } from '../../navigation/types';
 import { useAppSelector, useAppDispatch } from '../../store';
 import { refreshUser, decrementPendingRequestsCount, setPendingRequestsCount } from '../../store/slices/authSlice';
-import { colors, spacing, typography, borderRadius } from '../../theme';
+import { colors, spacing, typography } from '../../theme';
+import { Button, EmptyState, ErrorState, IconButton, Skeleton } from '../../components/ui';
 import UserRow from '../../components/social/UserRow';
 import {
   fetchPendingRequests, acceptFollowRequest, declineFollowRequest,
@@ -141,8 +142,16 @@ export default function FollowRequestsScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={styles.list} accessible accessibilityLabel="Chargement des demandes" accessibilityState={{ busy: true }}>
+        {Array.from({ length: 4 }, (_, i) => (
+          <View key={i} style={styles.skeletonRow}>
+            <Skeleton width={44} height={44} radius={22} />
+            <View style={styles.skeletonText}>
+              <Skeleton width="45%" height={14} />
+              <Skeleton width="70%" height={12} style={styles.skeletonGap} />
+            </View>
+          </View>
+        ))}
       </View>
     );
   }
@@ -150,8 +159,11 @@ export default function FollowRequestsScreen() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={36} color={colors.error} />
-        <Text style={styles.emptyText}>{error}</Text>
+        <ErrorState
+          title="Demandes indisponibles"
+          message={`${error}\nVérifie ta connexion puis réessaie.`}
+          onRetry={() => { setLoading(true); load(); }}
+        />
       </View>
     );
   }
@@ -159,11 +171,11 @@ export default function FollowRequestsScreen() {
   if (requests.length === 0) {
     return (
       <View style={styles.center}>
-        <Ionicons name="checkmark-done-circle-outline" size={56} color={colors.textDisabled} />
-        <Text style={styles.emptyTitle}>Aucune demande en attente</Text>
-        <Text style={styles.emptyText}>
-          Quand un pêcheur voudra te suivre, sa demande apparaîtra ici.
-        </Text>
+        <EmptyState
+          icon="person-add-outline"
+          title="Aucune demande en attente"
+          message="Quand un pêcheur voudra te suivre, sa demande apparaîtra ici."
+        />
       </View>
     );
   }
@@ -174,7 +186,7 @@ export default function FollowRequestsScreen() {
       contentContainerStyle={{ paddingBottom: spacing.xl }}
       data={requests}
       keyExtractor={(u) => u.id}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
       ListHeaderComponent={
         <Text style={styles.header}>
           {requests.length} demande{requests.length > 1 ? 's' : ''} en attente
@@ -187,59 +199,52 @@ export default function FollowRequestsScreen() {
         let rightSlot: React.ReactNode;
         if (status === 'now_following') {
           rightSlot = (
-            <View style={[styles.statusChip, styles.statusChipSuccess]}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-              <Text style={[styles.statusChipText, styles.statusChipTextSuccess]}>Abonné(e)</Text>
+            <View style={styles.status} accessible accessibilityLabel="Abonné(e)">
+              <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.statusText, styles.statusTextSuccess]}>Abonné(e)</Text>
             </View>
           );
         } else if (status === 'followed_back') {
           rightSlot = (
-            <View style={[styles.statusChip, styles.statusChipMuted]}>
-              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.statusChipText}>Demande envoyée</Text>
+            <View style={styles.status} accessible accessibilityLabel="Demande envoyée">
+              <Ionicons name="time-outline" size={16} color={colors.inkSecondary} />
+              <Text style={styles.statusText}>Demande envoyée</Text>
             </View>
           );
         } else if (status === 'accepted') {
           rightSlot = (
-            <TouchableOpacity
-              style={[styles.followBackBtn, busy && { opacity: 0.6 }]}
+            <Button
+              title="Suivre en retour"
+              icon="person-add-outline"
+              variant="tonal"
+              size="sm"
               onPress={() => onFollowBack(item)}
+              loading={busy}
               disabled={busy}
-              activeOpacity={0.85}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="person-add-outline" size={14} color="#fff" />
-                  <Text style={styles.followBackText}>Suivre en retour</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            />
           );
         } else {
           rightSlot = (
             <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnAccept]}
-                onPress={() => onAccept(item)}
-                disabled={busy}
-                activeOpacity={0.8}
-              >
-                {busy ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnDecline]}
+              <IconButton
+                icon="close"
+                variant="plain"
+                color={colors.inkSecondary}
+                accessibilityLabel={`Refuser la demande de ${item.username}`}
                 onPress={() => onDecline(item)}
                 disabled={busy}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
+                style={styles.declineBtn}
+              />
+              {busy ? (
+                <View style={styles.busy}><ActivityIndicator size="small" color={colors.primary} /></View>
+              ) : (
+                <IconButton
+                  icon="checkmark"
+                  variant="filled"
+                  accessibilityLabel={`Accepter la demande de ${item.username}`}
+                  onPress={() => onAccept(item)}
+                />
+              )}
             </View>
           );
         }
@@ -259,61 +264,31 @@ export default function FollowRequestsScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: colors.background },
   header: {
-    ...typography.label,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    padding: spacing.md,
-    fontSize: 11,
-  },
-  actions: { flexDirection: 'row', gap: spacing.sm },
-  btn: {
-    width: 36, height: 36,
-    borderRadius: borderRadius.full,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  btnAccept: { backgroundColor: colors.primary },
-  btnDecline: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  followBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.inkSecondary,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    minHeight: 32,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    fontVariant: ['tabular-nums'],
   },
-  followBackText: { ...typography.caption, color: '#fff', fontWeight: '700' },
-  statusChip: {
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  declineBtn: { borderWidth: 1, borderColor: colors.outline, borderRadius: 22 },
+  busy: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 },
+  statusText: { ...typography.footnote, color: colors.inkSecondary, fontWeight: '500' },
+  statusTextSuccess: { color: colors.primaryDark },
+  center: { flex: 1, justifyContent: 'center', backgroundColor: colors.background },
+  skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 6,
+    gap: spacing.ms,
+    minHeight: 64,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
   },
-  statusChipMuted: {
-    backgroundColor: colors.surfaceVariant,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statusChipSuccess: {
-    backgroundColor: colors.successLight,
-    borderWidth: 1,
-    borderColor: colors.success + '40',
-  },
-  statusChipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
-  statusChipTextSuccess: { color: colors.success },
-  center: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, padding: spacing.lg,
-    backgroundColor: colors.background,
-  },
-  emptyTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center' },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  skeletonText: { flex: 1 },
+  skeletonGap: { marginTop: spacing.sm },
 });

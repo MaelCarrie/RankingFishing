@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, FishingSpecialty } from '../store/types';
-import { MOCK_CURRENT_USER } from './mock/data';
+import * as mockDb from './mock/db';
 import { delay, generateId } from '../utils/helpers';
 import { supabase, USE_MOCK_DATA } from '../config/supabase';
 
-const USER_STORAGE_KEY = '@rankingfishing_user';
+const USER_STORAGE_KEY = mockDb.USER_STORAGE_KEY;
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -17,6 +17,7 @@ export interface RegisterData {
   email: string;
   password: string;
   username: string;
+  region?: string;
   specialties?: string[];
 }
 
@@ -48,6 +49,13 @@ export async function refreshAndStoreUser(userId: string): Promise<User> {
 }
 
 export async function fetchUserProfile(userId: string): Promise<User> {
+  if (USE_MOCK_DATA) {
+    await delay(250);
+    const user = await mockDb.getUser(userId);
+    if (!user) throw new Error('Utilisateur introuvable');
+    return user;
+  }
+
   const { data, error } = await supabase
     .from('users')
     .select('*, user_stats(*), user_specialties(*)')
@@ -68,6 +76,7 @@ export async function fetchUserProfile(userId: string): Promise<User> {
     avatar: data.avatar_url ?? undefined,
     bio: data.bio ?? '',
     location: data.location ?? '',
+    region: data.region ?? undefined,
     isPremium: data.is_premium ?? false,
     xp: data.xp ?? 0,
     level: data.level ?? 1,
@@ -91,8 +100,12 @@ export async function fetchUserProfile(userId: string): Promise<User> {
 
 export async function signIn(credentials: AuthCredentials): Promise<User> {
   if (USE_MOCK_DATA) {
-    await delay(800);
-    const user = { ...MOCK_CURRENT_USER, email: credentials.email };
+    await delay(500);
+    const account = await mockDb.findAccount(credentials.email);
+    if (!account || account.password !== credentials.password) {
+      throw new Error('Email ou mot de passe incorrect');
+    }
+    const user = (await mockDb.getUser(account.user.id)) ?? account.user;
     await storeUser(user);
     return user;
   }
@@ -113,12 +126,18 @@ export async function signIn(credentials: AuthCredentials): Promise<User> {
 
 export async function register(data: RegisterData): Promise<User> {
   if (USE_MOCK_DATA) {
-    await delay(1000);
+    await delay(600);
+    if (await mockDb.findAccount(data.email)) {
+      throw new Error('Un compte existe déjà avec cet email');
+    }
     const newUser: User = {
-      ...MOCK_CURRENT_USER,
-      id: generateId(),
-      email: data.email,
+      id: `user_${generateId()}`,
+      email: data.email.trim().toLowerCase(),
       username: data.username,
+      bio: '',
+      location: '',
+      region: data.region,
+      isPremium: false,
       xp: 0,
       level: 1,
       levelName: 'Novice',
@@ -134,8 +153,11 @@ export async function register(data: RegisterData): Promise<User> {
         regionalRank: null,
         challengesWon: 0,
       },
+      followersCount: 0,
+      followingCount: 0,
       createdAt: new Date().toISOString(),
     };
+    await mockDb.createAccount(data.email, data.password, newUser);
     await storeUser(newUser);
     return newUser;
   }
@@ -154,6 +176,7 @@ export async function register(data: RegisterData): Promise<User> {
     id: userId,
     email: data.email,
     username: data.username,
+    region: data.region ?? null,
     xp: 0,
     level: 1,
     level_name: 'Novice',
@@ -177,11 +200,31 @@ export async function register(data: RegisterData): Promise<User> {
   return newUser;
 }
 
+// ─── Mise à jour du profil ───────────────────────────────────────────────────
+
+export async function updateProfile(
+  userId: string,
+  fields: { region?: string; bio?: string; location?: string }
+): Promise<User> {
+  if (USE_MOCK_DATA) {
+    await delay(300);
+    const updated = await mockDb.patchUser(userId, fields);
+    if (!updated) throw new Error('Utilisateur introuvable');
+    await storeUser(updated);
+    return updated;
+  }
+
+  const { error } = await supabase.from('users').update(fields).eq('id', userId);
+  if (error) throw error;
+
+  return refreshAndStoreUser(userId);
+}
+
 // ─── Déconnexion ─────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {
   if (USE_MOCK_DATA) {
-    await delay(300);
+    await delay(200);
     await clearStoredUser();
     return;
   }
@@ -194,8 +237,8 @@ export async function signOut(): Promise<void> {
 
 export async function resetPassword(email: string): Promise<void> {
   if (USE_MOCK_DATA) {
-    await delay(800);
-    return;
+    await delay(500);
+    return; // aucun email réel n'est envoyé en mode mock
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email);
